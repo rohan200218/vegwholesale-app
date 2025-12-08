@@ -33,10 +33,23 @@ type WeighingItem = {
   id: string;
   productId: string;
   productName: string;
-  weight: number;
+  quantity: number;
   unit: string;
   unitPrice: number;
   total: number;
+};
+
+// Unit classification helpers
+const WEIGHT_UNITS = ["KG", "Kg", "kg"];
+const COUNT_UNITS = ["Box", "Bag", "Crate", "Piece", "Dozen", "Bundle"];
+
+const isWeightBasedUnit = (unit: string): boolean => {
+  return WEIGHT_UNITS.some(u => u.toLowerCase() === unit.toLowerCase());
+};
+
+const getUnitLabel = (unit: string): string => {
+  if (isWeightBasedUnit(unit)) return "Weight";
+  return "Quantity";
 };
 
 export default function Weighing() {
@@ -44,7 +57,7 @@ export default function Weighing() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [selectedProduct, setSelectedProduct] = useState<string>("");
-  const [weight, setWeight] = useState<string>("");
+  const [quantity, setQuantity] = useState<string>("");
   const [weighingItems, setWeighingItems] = useState<WeighingItem[]>([]);
   const [includeHalalCharge, setIncludeHalalCharge] = useState(false);
   const [halalChargePercent, setHalalChargePercent] = useState("5");
@@ -85,9 +98,13 @@ export default function Weighing() {
     const baseQty = inventoryItem?.quantity || 0;
     const usedQty = weighingItems
       .filter(item => item.productId === productId)
-      .reduce((sum, item) => sum + item.weight, 0);
+      .reduce((sum, item) => sum + item.quantity, 0);
     return Math.max(0, baseQty - usedQty);
   };
+
+  // Get selected product details
+  const selectedProductData = products.find(p => p.id === selectedProduct);
+  const isWeightBased = selectedProductData ? isWeightBasedUnit(selectedProductData.unit) : true;
 
   // Demo mode: simulate weight changes
   useEffect(() => {
@@ -128,8 +145,18 @@ export default function Weighing() {
   };
 
   const captureWeight = () => {
+    // Only allow weight capture for weight-based products
+    if (!isWeightBased) {
+      toast({
+        title: "Scale Not Applicable",
+        description: "This product uses count-based units. Please enter quantity manually.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (weightStable && liveWeight > 0) {
-      setWeight(liveWeight.toFixed(2));
+      setQuantity(liveWeight.toFixed(2));
       toast({
         title: "Weight Captured",
         description: `Captured ${liveWeight.toFixed(2)} KG from scale`,
@@ -175,20 +202,22 @@ export default function Weighing() {
   const getProduct = (id: string) => products.find((p) => p.id === id);
 
   const addWeighingItem = () => {
-    if (!selectedProduct || !weight || parseFloat(weight) <= 0) {
-      toast({ title: "Invalid Entry", description: "Please select a product and capture/enter a valid weight.", variant: "destructive" });
+    if (!selectedProduct || !quantity || parseFloat(quantity) <= 0) {
+      const productUnit = selectedProductData?.unit || "KG";
+      const label = isWeightBasedUnit(productUnit) ? "weight" : "quantity";
+      toast({ title: "Invalid Entry", description: `Please select a product and enter a valid ${label}.`, variant: "destructive" });
       return;
     }
 
     const product = getProduct(selectedProduct);
     if (!product) return;
 
-    const weightNum = parseFloat(weight);
+    const qtyNum = parseFloat(quantity);
     
     // Check vehicle inventory if a vehicle is selected
     if (selectedVehicle && vehicleInventoryData.length > 0) {
       const remainingStock = getVehicleStock(selectedProduct);
-      if (weightNum > remainingStock) {
+      if (qtyNum > remainingStock) {
         toast({ 
           title: "Insufficient Stock", 
           description: `Only ${remainingStock.toFixed(2)} ${product.unit} available in the selected vehicle.`, 
@@ -198,13 +227,13 @@ export default function Weighing() {
       }
     }
     
-    const total = weightNum * product.salePrice;
+    const total = qtyNum * product.salePrice;
 
     const newItem: WeighingItem = {
       id: Date.now().toString(),
       productId: product.id,
       productName: product.name,
-      weight: weightNum,
+      quantity: qtyNum,
       unit: product.unit,
       unitPrice: product.salePrice,
       total,
@@ -212,7 +241,19 @@ export default function Weighing() {
 
     setWeighingItems([...weighingItems, newItem]);
     setSelectedProduct("");
-    setWeight("");
+    setQuantity("");
+  };
+
+  const incrementQuantity = () => {
+    const current = parseFloat(quantity) || 0;
+    setQuantity((current + 1).toString());
+  };
+
+  const decrementQuantity = () => {
+    const current = parseFloat(quantity) || 0;
+    if (current > 0) {
+      setQuantity(Math.max(0, current - 1).toString());
+    }
   };
 
   const removeWeighingItem = (id: string) => {
@@ -249,7 +290,7 @@ export default function Weighing() {
       grandTotal,
       items: weighingItems.map((item) => ({
         productId: item.productId,
-        quantity: item.weight,
+        quantity: item.quantity,
         unitPrice: item.unitPrice,
         total: item.total,
       })),
@@ -348,7 +389,7 @@ export default function Weighing() {
                 <Button
                   size="lg"
                   onClick={captureWeight}
-                  disabled={!scaleConnected || !weightStable || liveWeight <= 0}
+                  disabled={!scaleConnected || !weightStable || liveWeight <= 0 || !isWeightBased}
                   className="min-w-[150px]"
                   data-testid="button-capture-weight"
                 >
@@ -468,14 +509,14 @@ export default function Weighing() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Scale className="h-4 w-4" />
-                Step 2: Weigh Products & Add to Bill
+                Step 2: Add Products to Bill
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div className="space-y-2 md:col-span-2">
                   <Label>Product</Label>
-                  <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                  <Select value={selectedProduct} onValueChange={(val) => { setSelectedProduct(val); setQuantity(""); }}>
                     <SelectTrigger data-testid="select-product">
                       <SelectValue placeholder="Select product" />
                     </SelectTrigger>
@@ -483,21 +524,55 @@ export default function Weighing() {
                       {products.map((product) => (
                         <SelectItem key={product.id} value={product.id}>
                           {product.name} - {product.salePrice.toLocaleString("en-IN", { style: "currency", currency: "INR" })}/{product.unit}
+                          {!isWeightBasedUnit(product.unit) && <Badge variant="outline" className="ml-2 text-xs">{product.unit}</Badge>}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Weight ({getProduct(selectedProduct)?.unit || "KG"})</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    placeholder={scaleConnected ? "From scale" : "Enter weight"}
-                    data-testid="input-weight"
-                  />
+                  <Label>
+                    {selectedProductData ? getUnitLabel(selectedProductData.unit) : "Quantity"} ({selectedProductData?.unit || "KG"})
+                  </Label>
+                  {isWeightBased ? (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      placeholder={scaleConnected ? "From scale" : "Enter weight"}
+                      data-testid="input-quantity"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={decrementQuantity}
+                        data-testid="button-decrement"
+                      >
+                        -
+                      </Button>
+                      <Input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={quantity}
+                        onChange={(e) => setQuantity(e.target.value)}
+                        placeholder="0"
+                        className="text-center"
+                        data-testid="input-quantity"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={incrementQuantity}
+                        data-testid="button-increment"
+                      >
+                        +
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <Button onClick={addWeighingItem} data-testid="button-add-item">
                   <Plus className="h-4 w-4 mr-2" />
@@ -505,12 +580,28 @@ export default function Weighing() {
                 </Button>
               </div>
 
+              {/* Show scale capture hint for weight-based products */}
+              {isWeightBased && selectedProduct && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {scaleConnected 
+                    ? "Use 'Capture Weight' button above to get weight from scale, or enter manually." 
+                    : "Connect scale to capture weight automatically, or enter weight manually."}
+                </p>
+              )}
+              
+              {/* Show count hint for count-based products */}
+              {!isWeightBased && selectedProduct && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Enter the number of {selectedProductData?.unit.toLowerCase()}s for this product.
+                </p>
+              )}
+
               <div className="mt-6">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Product</TableHead>
-                      <TableHead className="text-right">Weight</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
                       <TableHead className="text-right">Rate</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead className="w-12"></TableHead>
@@ -520,7 +611,7 @@ export default function Weighing() {
                     {weighingItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          No items weighed yet. {scaleConnected ? "Capture weight from the scale and add items." : "Connect scale or enter weight manually."}
+                          No items added yet. Select a product and enter quantity to add.
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -528,7 +619,7 @@ export default function Weighing() {
                         <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
                           <TableCell className="font-medium">{item.productName}</TableCell>
                           <TableCell className="text-right font-mono">
-                            {item.weight} {item.unit}
+                            {isWeightBasedUnit(item.unit) ? item.quantity.toFixed(2) : item.quantity} {item.unit}
                           </TableCell>
                           <TableCell className="text-right font-mono">
                             {item.unitPrice.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
