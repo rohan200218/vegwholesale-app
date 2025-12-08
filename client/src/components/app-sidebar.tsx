@@ -26,6 +26,7 @@ import {
   FileText,
   Settings,
   Scale,
+  RotateCcw,
 } from "lucide-react";
 
 const navigationItems = [
@@ -66,6 +67,11 @@ const transactionItems = [
     title: "Purchases",
     url: "/purchases",
     icon: ShoppingCart,
+  },
+  {
+    title: "Returns",
+    url: "/vendor-returns",
+    icon: RotateCcw,
   },
   {
     title: "Weighing",
