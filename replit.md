@@ -11,6 +11,7 @@ Full-featured application with complete business workflow:
 - Product catalog
 - Stock management with movement history
 - Purchase orders
+- Vendor returns for defective products
 - Invoice/billing with Halal charge option
 - Payment tracking (vendor & customer)
 - Business reports (profit/loss, stock movements)
@@ -87,6 +88,14 @@ shared/
 - Assign vehicles
 - Add multiple line items
 - Auto-update stock on creation
+
+### Vendor Returns
+- Return defective or damaged products to vendors
+- Track return reason per item (Damaged, Rotten/Spoiled, Wrong Item, Quality Issue, Excess Stock, Other)
+- Optional vehicle assignment for truck-based returns
+- Auto-deduct stock when return is created
+- Credits vendor balance (reduces payable amount)
+- Return history with filtering
 
 ### Weighing Station
 - Select truck/vehicle and customer
@@ -170,6 +179,12 @@ shared/
 - GET /api/purchases/:id/items
 - POST /api/purchases
 
+### Vendor Returns
+- GET /api/vendor-returns
+- GET /api/vendor-returns/:id
+- GET /api/vendor-returns/:id/items
+- POST /api/vendor-returns
+
 ### Invoices
 - GET /api/invoices
 - GET /api/invoices/:id
@@ -199,6 +214,8 @@ shared/
 - stock_movements - Stock in/out history
 - purchases - Purchase order headers
 - purchase_items - Purchase line items
+- vendor_returns - Vendor return headers
+- vendor_return_items - Vendor return line items
 - invoices - Invoice headers
 - invoice_items - Invoice line items
 - vendor_payments - Vendor payment records
@@ -217,6 +234,10 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 8, 2025: Added vendor returns feature
+  - Return defective products to vendors with reason tracking
+  - Automatically deducts stock and credits vendor balance
+  - Full return history with vendor/vehicle/amount tracking
 - December 8, 2025: Added vehicle inventory tracking system
   - Products loaded into vehicles via purchases are tracked separately
   - Weighing station displays remaining stock per vehicle
