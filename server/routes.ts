@@ -10,6 +10,8 @@ import {
   insertVendorPaymentSchema,
   insertCustomerPaymentSchema,
   insertCompanySettingsSchema,
+  insertVendorReturnSchema,
+  insertVendorReturnItemSchema,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -435,6 +437,60 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error loading inventory:", error);
       res.status(400).json({ error: "Invalid inventory data" });
+    }
+  });
+
+  // Vendor Returns
+  app.get("/api/vendor-returns", async (req, res) => {
+    const { vendorId } = req.query;
+    const returns = await storage.getVendorReturns(vendorId as string | undefined);
+    res.json(returns);
+  });
+
+  app.get("/api/vendor-returns/:id", async (req, res) => {
+    const vendorReturn = await storage.getVendorReturn(req.params.id);
+    if (!vendorReturn) {
+      return res.status(404).json({ error: "Vendor return not found" });
+    }
+    res.json(vendorReturn);
+  });
+
+  app.get("/api/vendor-returns/:id/items", async (req, res) => {
+    const items = await storage.getVendorReturnItems(req.params.id);
+    res.json(items);
+  });
+
+  const vendorReturnSchema = z.object({
+    vendorId: z.string(),
+    purchaseId: z.string().optional(),
+    vehicleId: z.string().optional(),
+    date: z.string(),
+    totalAmount: z.number(),
+    status: z.string().optional(),
+    notes: z.string().optional(),
+    items: z.array(
+      z.object({
+        productId: z.string(),
+        quantity: z.number(),
+        unitPrice: z.number(),
+        total: z.number(),
+        reason: z.string(),
+      })
+    ),
+  });
+
+  app.post("/api/vendor-returns", async (req, res) => {
+    try {
+      const data = vendorReturnSchema.parse(req.body);
+      const { items, ...returnData } = data;
+      const vendorReturn = await storage.createVendorReturn(
+        returnData,
+        items.map((item) => ({ ...item, returnId: "" }))
+      );
+      res.status(201).json(vendorReturn);
+    } catch (error) {
+      console.error("Vendor return error:", error);
+      res.status(400).json({ error: "Invalid vendor return data" });
     }
   });
 
