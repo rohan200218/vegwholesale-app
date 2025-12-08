@@ -403,37 +403,61 @@ export default function Weighing() {
               {/* Vehicle Inventory Display */}
               {selectedVehicle && (
                 <div className="mt-4 pt-4 border-t">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Products in Vehicle</span>
-                    {inventoryLoading && <span className="text-xs text-muted-foreground">(Loading...)</span>}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Products Available in Vehicle</span>
+                    </div>
+                    {inventoryLoading && <Badge variant="outline">Loading...</Badge>}
                   </div>
                   {vehicleInventoryData.length === 0 && !inventoryLoading ? (
-                    <p className="text-sm text-muted-foreground">No products loaded in this vehicle</p>
+                    <div className="text-center py-4 bg-muted/50 rounded-md">
+                      <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">No products loaded in this vehicle</p>
+                      <p className="text-xs text-muted-foreground mt-1">Create a purchase order with this vehicle to load products</p>
+                    </div>
                   ) : (
-                    <ScrollArea className="h-32">
-                      <div className="space-y-1">
-                        {vehicleInventoryData.map((inv) => {
-                          const product = products.find(p => p.id === inv.productId);
-                          const remaining = getVehicleStock(inv.productId);
-                          return (
-                            <div 
-                              key={inv.id} 
-                              className="flex items-center justify-between gap-2 text-sm py-1"
-                              data-testid={`vehicle-stock-${inv.productId}`}
-                            >
-                              <span>{product?.name || "Unknown Product"}</span>
-                              <Badge 
-                                variant={remaining > 0 ? "secondary" : "outline"}
-                                className={remaining <= 0 ? "opacity-50" : ""}
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Available Qty</TableHead>
+                            <TableHead className="text-right">Unit</TableHead>
+                            <TableHead className="text-right">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {vehicleInventoryData.map((inv) => {
+                            const product = products.find(p => p.id === inv.productId);
+                            const remaining = getVehicleStock(inv.productId);
+                            return (
+                              <TableRow 
+                                key={inv.id}
+                                data-testid={`vehicle-stock-${inv.productId}`}
                               >
-                                {remaining.toFixed(1)} {product?.unit || "KG"}
-                              </Badge>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </ScrollArea>
+                                <TableCell className="font-medium">{product?.name || "Unknown Product"}</TableCell>
+                                <TableCell className="text-right font-mono text-lg font-semibold">
+                                  {remaining.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right text-muted-foreground">
+                                  {product?.unit || "KG"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {remaining > (product?.reorderLevel || 10) ? (
+                                    <Badge variant="default" className="bg-green-600">In Stock</Badge>
+                                  ) : remaining > 0 ? (
+                                    <Badge variant="secondary" className="bg-yellow-500 text-yellow-950">Low Stock</Badge>
+                                  ) : (
+                                    <Badge variant="destructive">Out of Stock</Badge>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </div>
               )}
