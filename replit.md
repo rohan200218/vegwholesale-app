@@ -106,12 +106,18 @@ shared/
 - Auto-detect product unit and show appropriate input method
 - Vehicle inventory display with available quantities
 - Quick invoice generation from weighing
-- Hamali charge toggle with percentage
+- Hamali charge system with rate per KG:
+  - "Include Hamali" checkbox to add Hamali to invoice
+  - "Paid by Cash" checkbox for separate cash payment recording
+  - Rate per KG input field (default: 2)
+  - Hamali calculated from total KG weight of weight-based products only
 
 ### Billing/Invoicing
 - Create customer invoices
-- Hamali charge toggle (include/exclude)
-- Configurable Hamali charge percentage
+- Hamali charge system:
+  - Include Hamali toggle (add to invoice or exclude)
+  - Paid by Cash toggle (record separately in Hamali cash payments)
+  - Rate per KG calculation based on total weight
 - Auto-calculate totals
 - Stock deduction on invoice creation
 
@@ -268,6 +274,12 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 8, 2025: Updated Hamali charge system from percentage to rate per KG
+  - Replaced percentage-based calculation with rate per KG
+  - Added dual checkbox control: "Include Hamali" and "Paid by Cash"
+  - Hamali now calculated from total KG weight (weight-based products only)
+  - Database schema updated with new columns: hamali_rate_per_kg, hamali_paid_by_cash, total_kg_weight
+  - Reports and print pages updated to show rate per KG
 - December 8, 2025: Added vendor returns feature
   - Return defective products to vendors with reason tracking
   - Automatically deducts stock and credits vendor balance
