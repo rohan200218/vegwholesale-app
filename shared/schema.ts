@@ -239,6 +239,20 @@ export const insertVendorReturnItemSchema = createInsertSchema(vendorReturnItems
 export type InsertVendorReturnItem = z.infer<typeof insertVendorReturnItemSchema>;
 export type VendorReturnItem = typeof vendorReturnItems.$inferSelect;
 
+// Halal Cash Payments - direct cash given to Halal (not through invoices)
+export const halalCashPayments = pgTable("halal_cash_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  amount: real("amount").notNull(),
+  date: text("date").notNull(),
+  paymentMethod: text("payment_method").notNull().default("cash"),
+  customerId: varchar("customer_id"), // optional - which customer gave the cash
+  notes: text("notes"),
+});
+
+export const insertHalalCashPaymentSchema = createInsertSchema(halalCashPayments).omit({ id: true });
+export type InsertHalalCashPayment = z.infer<typeof insertHalalCashPaymentSchema>;
+export type HalalCashPayment = typeof halalCashPayments.$inferSelect;
+
 // Legacy user schema for compatibility
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

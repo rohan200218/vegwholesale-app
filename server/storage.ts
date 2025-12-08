@@ -33,6 +33,8 @@ import {
   type InsertVendorReturn,
   type VendorReturnItem,
   type InsertVendorReturnItem,
+  type HalalCashPayment,
+  type InsertHalalCashPayment,
   vendors,
   customers,
   vehicles,
@@ -49,6 +51,7 @@ import {
   vehicleInventoryMovements,
   vendorReturns,
   vendorReturnItems,
+  halalCashPayments,
   users,
 } from "@shared/schema";
 import { db } from "./db";
@@ -119,6 +122,11 @@ export interface IStorage {
   getVendorReturn(id: string): Promise<VendorReturn | undefined>;
   createVendorReturn(vendorReturn: InsertVendorReturn, items: InsertVendorReturnItem[]): Promise<VendorReturn>;
   getVendorReturnItems(returnId: string): Promise<VendorReturnItem[]>;
+
+  // Halal Cash Payments
+  getHalalCashPayments(): Promise<HalalCashPayment[]>;
+  createHalalCashPayment(payment: InsertHalalCashPayment): Promise<HalalCashPayment>;
+  deleteHalalCashPayment(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -605,6 +613,21 @@ export class DatabaseStorage implements IStorage {
 
   async getVendorReturnItems(returnId: string): Promise<VendorReturnItem[]> {
     return await db.select().from(vendorReturnItems).where(eq(vendorReturnItems.returnId, returnId));
+  }
+
+  // Halal Cash Payments
+  async getHalalCashPayments(): Promise<HalalCashPayment[]> {
+    return await db.select().from(halalCashPayments);
+  }
+
+  async createHalalCashPayment(insertPayment: InsertHalalCashPayment): Promise<HalalCashPayment> {
+    const [payment] = await db.insert(halalCashPayments).values(insertPayment).returning();
+    return payment;
+  }
+
+  async deleteHalalCashPayment(id: string): Promise<boolean> {
+    const result = await db.delete(halalCashPayments).where(eq(halalCashPayments.id, id)).returning();
+    return result.length > 0;
   }
 }
 
