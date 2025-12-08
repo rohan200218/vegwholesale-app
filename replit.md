@@ -123,6 +123,19 @@ shared/
 
 ### Reports
 - Profit/loss calculations (including vendor returns in net cost)
+- **Halal Charge Summary Section:**
+  - Total Halal collected (sum of all Halal charges)
+  - Invoices with Halal included (count and sales total)
+  - Invoices with Halal excluded (count and sales total)
+- **Invoice Details Tab:**
+  - Each invoice with Halal status badge (Included/Excluded)
+  - Halal percentage and amount per invoice
+  - Subtotal and grand total breakdown
+- **Customer Payment Summary Tab:**
+  - Total invoiced per customer
+  - Halal amount collected per customer
+  - Total paid and balance due
+  - Payment status (Paid/Partial/Unpaid)
 - Vendor returns tracking and totals
 - Product margin analysis
 - Stock movement reports with date filtering
