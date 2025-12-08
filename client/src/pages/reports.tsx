@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -13,8 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw, CircleCheck, CircleX, Receipt, CreditCard, Users } from "lucide-react";
-import type { Product, StockMovement } from "@shared/schema";
+import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw, CircleCheck, CircleX, Receipt, CreditCard, Users, Download, Calendar, Filter } from "lucide-react";
+import type { Product, StockMovement, Invoice, Customer } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type HalalSummary = {
@@ -78,12 +80,48 @@ type ProfitLossReport = {
   customerPaymentSummary?: CustomerPaymentSummary[];
 };
 
+type PeriodType = "all" | "daily" | "monthly";
+
+type DailySummary = {
+  date: string;
+  sales: number;
+  invoiceCount: number;
+  halalFromInvoices: number;
+  halalCash: number;
+  totalHalal: number;
+};
+
+type MonthlySummary = {
+  month: string;
+  monthLabel: string;
+  sales: number;
+  invoiceCount: number;
+  halalFromInvoices: number;
+  halalCash: number;
+  totalHalal: number;
+};
+
+function formatCurrency(amount: number): string {
+  return amount.toLocaleString("en-IN", { style: "currency", currency: "INR" });
+}
+
+function downloadCSV(data: string[][], filename: string) {
+  const csvContent = data.map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export default function Reports() {
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   
   const [startDate, setStartDate] = useState(thirtyDaysAgo);
   const [endDate, setEndDate] = useState(today);
+  const [periodType, setPeriodType] = useState<PeriodType>("all");
 
   const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
@@ -93,11 +131,40 @@ export default function Reports() {
     queryKey: ["/api/stock-movements"],
   });
 
+  const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
+    queryKey: ["/api/invoices"],
+  });
+
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["/api/customers"],
+  });
+
+  const { data: halalCashPayments = [] } = useQuery<HalalCashPayment[]>({
+    queryKey: ["/api/halal-cash"],
+  });
+
   const { data: profitLoss, isLoading: profitLoading } = useQuery<ProfitLossReport>({
     queryKey: ["/api/reports/profit-loss"],
   });
 
+  const getCustomerName = (id: string) => customers.find((c) => c.id === id)?.name || "Unknown";
   const getProductName = (id: string) => products.find((p) => p.id === id)?.name || "Unknown";
+
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((inv) => {
+      if (startDate && inv.date < startDate) return false;
+      if (endDate && inv.date > endDate) return false;
+      return true;
+    });
+  }, [invoices, startDate, endDate]);
+
+  const filteredHalalCash = useMemo(() => {
+    return halalCashPayments.filter((payment) => {
+      if (startDate && payment.date < startDate) return false;
+      if (endDate && payment.date > endDate) return false;
+      return true;
+    });
+  }, [halalCashPayments, startDate, endDate]);
 
   const filteredMovements = stockMovements.filter((m) => {
     if (startDate && m.date < startDate) return false;
@@ -105,12 +172,202 @@ export default function Reports() {
     return true;
   });
 
+  const filteredSummary = useMemo(() => {
+    const totalSales = filteredInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+    const invoiceHalalTotal = filteredInvoices
+      .filter(inv => inv.includeHalalCharge)
+      .reduce((sum, inv) => sum + (inv.halalChargeAmount || 0), 0);
+    const directCashHalalTotal = filteredHalalCash.reduce((sum, p) => sum + p.amount, 0);
+    const invoicesWithHalal = filteredInvoices.filter(inv => inv.includeHalalCharge).length;
+    const invoicesWithoutHalal = filteredInvoices.filter(inv => !inv.includeHalalCharge).length;
+
+    return {
+      totalSales,
+      invoiceHalalTotal,
+      directCashHalalTotal,
+      totalHalalCollected: invoiceHalalTotal + directCashHalalTotal,
+      invoicesWithHalal,
+      invoicesWithoutHalal,
+      invoiceCount: filteredInvoices.length,
+    };
+  }, [filteredInvoices, filteredHalalCash]);
+
+  const dailySummary = useMemo((): DailySummary[] => {
+    const dateMap = new Map<string, DailySummary>();
+
+    filteredInvoices.forEach((inv) => {
+      const existing = dateMap.get(inv.date) || {
+        date: inv.date,
+        sales: 0,
+        invoiceCount: 0,
+        halalFromInvoices: 0,
+        halalCash: 0,
+        totalHalal: 0,
+      };
+      existing.sales += inv.grandTotal;
+      existing.invoiceCount += 1;
+      if (inv.includeHalalCharge) {
+        existing.halalFromInvoices += inv.halalChargeAmount || 0;
+      }
+      dateMap.set(inv.date, existing);
+    });
+
+    filteredHalalCash.forEach((payment) => {
+      const existing = dateMap.get(payment.date) || {
+        date: payment.date,
+        sales: 0,
+        invoiceCount: 0,
+        halalFromInvoices: 0,
+        halalCash: 0,
+        totalHalal: 0,
+      };
+      existing.halalCash += payment.amount;
+      dateMap.set(payment.date, existing);
+    });
+
+    const result = Array.from(dateMap.values()).map((day) => ({
+      ...day,
+      totalHalal: day.halalFromInvoices + day.halalCash,
+    }));
+
+    return result.sort((a, b) => b.date.localeCompare(a.date));
+  }, [filteredInvoices, filteredHalalCash]);
+
+  const monthlySummary = useMemo((): MonthlySummary[] => {
+    const monthMap = new Map<string, MonthlySummary>();
+
+    filteredInvoices.forEach((inv) => {
+      const month = inv.date.substring(0, 7);
+      const monthLabel = new Date(inv.date).toLocaleDateString("en-IN", { year: "numeric", month: "long" });
+      const existing = monthMap.get(month) || {
+        month,
+        monthLabel,
+        sales: 0,
+        invoiceCount: 0,
+        halalFromInvoices: 0,
+        halalCash: 0,
+        totalHalal: 0,
+      };
+      existing.sales += inv.grandTotal;
+      existing.invoiceCount += 1;
+      if (inv.includeHalalCharge) {
+        existing.halalFromInvoices += inv.halalChargeAmount || 0;
+      }
+      monthMap.set(month, existing);
+    });
+
+    filteredHalalCash.forEach((payment) => {
+      const month = payment.date.substring(0, 7);
+      const monthLabel = new Date(payment.date).toLocaleDateString("en-IN", { year: "numeric", month: "long" });
+      const existing = monthMap.get(month) || {
+        month,
+        monthLabel,
+        sales: 0,
+        invoiceCount: 0,
+        halalFromInvoices: 0,
+        halalCash: 0,
+        totalHalal: 0,
+      };
+      existing.halalCash += payment.amount;
+      monthMap.set(month, existing);
+    });
+
+    const result = Array.from(monthMap.values()).map((m) => ({
+      ...m,
+      totalHalal: m.halalFromInvoices + m.halalCash,
+    }));
+
+    return result.sort((a, b) => b.month.localeCompare(a.month));
+  }, [filteredInvoices, filteredHalalCash]);
+
   const stockInTotal = filteredMovements.filter((m) => m.type === "in").reduce((sum, m) => sum + m.quantity, 0);
   const stockOutTotal = filteredMovements.filter((m) => m.type === "out").reduce((sum, m) => sum + m.quantity, 0);
 
   const lowStockProducts = products.filter((p) => p.currentStock <= (p.reorderLevel || 10));
 
-  if (productsLoading || movementsLoading || profitLoading) {
+  const downloadDailyReport = () => {
+    const headers = ["Date", "Sales", "Invoices", "Halal (Invoice)", "Halal (Cash)", "Total Halal"];
+    const rows = dailySummary.map((day) => [
+      day.date,
+      day.sales.toFixed(2),
+      day.invoiceCount.toString(),
+      day.halalFromInvoices.toFixed(2),
+      day.halalCash.toFixed(2),
+      day.totalHalal.toFixed(2),
+    ]);
+    const totals = [
+      "TOTAL",
+      dailySummary.reduce((sum, d) => sum + d.sales, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.invoiceCount, 0).toString(),
+      dailySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.halalCash, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.totalHalal, 0).toFixed(2),
+    ];
+    downloadCSV([headers, ...rows, totals], `daily-report-${startDate}-to-${endDate}.csv`);
+  };
+
+  const downloadMonthlyReport = () => {
+    const headers = ["Month", "Sales", "Invoices", "Halal (Invoice)", "Halal (Cash)", "Total Halal"];
+    const rows = monthlySummary.map((m) => [
+      m.monthLabel,
+      m.sales.toFixed(2),
+      m.invoiceCount.toString(),
+      m.halalFromInvoices.toFixed(2),
+      m.halalCash.toFixed(2),
+      m.totalHalal.toFixed(2),
+    ]);
+    const totals = [
+      "TOTAL",
+      monthlySummary.reduce((sum, d) => sum + d.sales, 0).toFixed(2),
+      monthlySummary.reduce((sum, d) => sum + d.invoiceCount, 0).toString(),
+      monthlySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0).toFixed(2),
+      monthlySummary.reduce((sum, d) => sum + d.halalCash, 0).toFixed(2),
+      monthlySummary.reduce((sum, d) => sum + d.totalHalal, 0).toFixed(2),
+    ];
+    downloadCSV([headers, ...rows, totals], `monthly-report-${startDate}-to-${endDate}.csv`);
+  };
+
+  const downloadInvoiceReport = () => {
+    const headers = ["Invoice #", "Date", "Customer", "Subtotal", "Halal Included", "Halal %", "Halal Amount", "Grand Total"];
+    const rows = filteredInvoices.map((inv) => [
+      inv.invoiceNumber,
+      inv.date,
+      getCustomerName(inv.customerId),
+      inv.subtotal.toFixed(2),
+      inv.includeHalalCharge ? "Yes" : "No",
+      inv.includeHalalCharge ? `${inv.halalChargePercent}%` : "-",
+      inv.includeHalalCharge ? (inv.halalChargeAmount || 0).toFixed(2) : "0",
+      inv.grandTotal.toFixed(2),
+    ]);
+    downloadCSV([headers, ...rows], `invoice-report-${startDate}-to-${endDate}.csv`);
+  };
+
+  const downloadHalalCashReport = () => {
+    const headers = ["Date", "Amount", "Payment Method", "Customer", "Notes"];
+    const rows = filteredHalalCash.map((payment) => [
+      payment.date,
+      payment.amount.toFixed(2),
+      payment.paymentMethod,
+      payment.customerId ? getCustomerName(payment.customerId) : "-",
+      payment.notes || "-",
+    ]);
+    const totals = ["TOTAL", filteredHalalCash.reduce((sum, p) => sum + p.amount, 0).toFixed(2), "", "", ""];
+    downloadCSV([headers, ...rows, totals], `halal-cash-report-${startDate}-to-${endDate}.csv`);
+  };
+
+  const downloadStockReport = () => {
+    const headers = ["Date", "Product", "Type", "Quantity", "Reason"];
+    const rows = filteredMovements.map((m) => [
+      m.date,
+      getProductName(m.productId),
+      m.type.toUpperCase(),
+      m.quantity.toString(),
+      m.reason || "-",
+    ]);
+    downloadCSV([headers, ...rows], `stock-movements-${startDate}-to-${endDate}.csv`);
+  };
+
+  if (productsLoading || movementsLoading || profitLoading || invoicesLoading) {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-8 w-48" />
@@ -134,37 +391,63 @@ export default function Reports() {
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Purchases
-            </CardTitle>
-            <ArrowDownRight className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-total-purchases">
-              {(profitLoss?.totalPurchases || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Report Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-4 flex-wrap">
+            <div className="space-y-2">
+              <Label>From Date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                data-testid="input-filter-start-date"
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Cost of goods</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Vendor Returns
-            </CardTitle>
-            <RotateCcw className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400" data-testid="text-total-returns">
-              {(profitLoss?.totalReturns || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+            <div className="space-y-2">
+              <Label>To Date</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                data-testid="input-filter-end-date"
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Returned to vendors</p>
-          </CardContent>
-        </Card>
+            <div className="space-y-2">
+              <Label>View By</Label>
+              <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+                <SelectTrigger className="w-40" data-testid="select-period-type">
+                  <SelectValue placeholder="Select view" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Data</SelectItem>
+                  <SelectItem value="daily">Day-wise</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStartDate(thirtyDaysAgo);
+                  setEndDate(today);
+                }}
+                data-testid="button-reset-filters"
+              >
+                Reset
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -173,112 +456,200 @@ export default function Reports() {
             <ArrowUpRight className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-total-sales">
-              {(profitLoss?.totalSales || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-sales">
+              {formatCurrency(filteredSummary.totalSales)}
             </div>
-            <p className="text-xs text-muted-foreground">Revenue generated</p>
+            <p className="text-xs text-muted-foreground">{filteredSummary.invoiceCount} invoices</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Gross Profit
+              Halal (Invoices)
             </CardTitle>
-            {(profitLoss?.grossProfit || 0) >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-primary" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-destructive" />
-            )}
+            <Receipt className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold font-mono ${(profitLoss?.grossProfit || 0) >= 0 ? "text-primary" : "text-destructive"}`} data-testid="text-gross-profit">
-              {(profitLoss?.grossProfit || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-halal-invoices">
+              {formatCurrency(filteredSummary.invoiceHalalTotal)}
             </div>
-            <p className="text-xs text-muted-foreground">Sales - Net Purchases</p>
+            <p className="text-xs text-muted-foreground">{filteredSummary.invoicesWithHalal} invoices</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Low Stock Items
+              Halal (Direct Cash)
             </CardTitle>
-            <Package className="h-4 w-4 text-amber-500" />
+            <CreditCard className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-low-stock-count">
-              {lowStockProducts.length}
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-halal-cash">
+              {formatCurrency(filteredSummary.directCashHalalTotal)}
             </div>
-            <p className="text-xs text-muted-foreground">Items below reorder level</p>
+            <p className="text-xs text-muted-foreground">{filteredHalalCash.length} payments</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">
+              Total Halal Collected
+            </CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-filtered-total-halal">
+              {formatCurrency(filteredSummary.totalHalalCollected)}
+            </div>
+            <p className="text-xs text-muted-foreground">Invoice + Direct Cash</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Halal Charge Section */}
-      <Card className="border-2 border-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-primary" />
-            Halal Charge Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-md bg-primary/10 border border-primary/20">
-              <p className="text-sm text-muted-foreground">Total Halal Collected</p>
-              <p className="text-2xl font-bold font-mono text-primary" data-testid="text-halal-collected">
-                {(profitLoss?.halalSummary?.totalHalalCollected || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Invoice + Direct Cash</p>
-            </div>
-            <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground">From Invoices</p>
-              <p className="text-xl font-bold font-mono" data-testid="text-halal-from-invoices">
-                {(profitLoss?.halalSummary?.invoiceHalalTotal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{profitLoss?.halalSummary?.invoicesWithHalal || 0} invoices with Halal</p>
-            </div>
-            <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground">Direct Cash</p>
-              <p className="text-xl font-bold font-mono" data-testid="text-halal-direct-cash">
-                {(profitLoss?.halalSummary?.directCashHalalTotal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Cash given directly to Halal</p>
-            </div>
-            <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <CircleX className="h-4 w-4 text-muted-foreground" />
-                Halal Excluded
-              </p>
-              <p className="text-xl font-bold font-mono" data-testid="text-halal-excluded-count">
-                {profitLoss?.halalSummary?.invoicesWithoutHalal || 0} invoices
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Sales: {(profitLoss?.halalSummary?.salesWithoutHalal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {periodType === "daily" && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Day-wise Report
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={downloadDailyReport} data-testid="button-download-daily">
+              <Download className="h-4 w-4 mr-1" />
+              Download CSV
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Sales</TableHead>
+                  <TableHead className="text-right">Invoices</TableHead>
+                  <TableHead className="text-right">Halal (Invoice)</TableHead>
+                  <TableHead className="text-right">Halal (Cash)</TableHead>
+                  <TableHead className="text-right">Total Halal</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dailySummary.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No data for selected date range
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <>
+                    {dailySummary.map((day) => (
+                      <TableRow key={day.date} data-testid={`row-daily-${day.date}`}>
+                        <TableCell className="font-medium">{day.date}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(day.sales)}</TableCell>
+                        <TableCell className="text-right">{day.invoiceCount}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(day.halalFromInvoices)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(day.halalCash)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(day.totalHalal)}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="bg-muted/50 font-bold">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.sales, 0))}</TableCell>
+                      <TableCell className="text-right">{dailySummary.reduce((sum, d) => sum + d.invoiceCount, 0)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0))}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.halalCash, 0))}</TableCell>
+                      <TableCell className="text-right font-mono text-primary">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.totalHalal, 0))}</TableCell>
+                    </TableRow>
+                  </>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
-      <Tabs defaultValue="halal" className="space-y-4">
+      {periodType === "monthly" && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Monthly Report
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={downloadMonthlyReport} data-testid="button-download-monthly">
+              <Download className="h-4 w-4 mr-1" />
+              Download CSV
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Month</TableHead>
+                  <TableHead className="text-right">Sales</TableHead>
+                  <TableHead className="text-right">Invoices</TableHead>
+                  <TableHead className="text-right">Halal (Invoice)</TableHead>
+                  <TableHead className="text-right">Halal (Cash)</TableHead>
+                  <TableHead className="text-right">Total Halal</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {monthlySummary.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No data for selected date range
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <>
+                    {monthlySummary.map((m) => (
+                      <TableRow key={m.month} data-testid={`row-monthly-${m.month}`}>
+                        <TableCell className="font-medium">{m.monthLabel}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(m.sales)}</TableCell>
+                        <TableCell className="text-right">{m.invoiceCount}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(m.halalFromInvoices)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(m.halalCash)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(m.totalHalal)}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="bg-muted/50 font-bold">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.sales, 0))}</TableCell>
+                      <TableCell className="text-right">{monthlySummary.reduce((sum, d) => sum + d.invoiceCount, 0)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0))}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.halalCash, 0))}</TableCell>
+                      <TableCell className="text-right font-mono text-primary">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.totalHalal, 0))}</TableCell>
+                    </TableRow>
+                  </>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <Tabs defaultValue="invoices" className="space-y-4">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="halal" data-testid="tab-halal">
+          <TabsTrigger value="invoices" data-testid="tab-invoices">
             <Receipt className="h-4 w-4 mr-1" />
             Invoice Details
           </TabsTrigger>
-          <TabsTrigger value="payments" data-testid="tab-payments">
+          <TabsTrigger value="halal-cash" data-testid="tab-halal-cash">
             <CreditCard className="h-4 w-4 mr-1" />
-            Payment Status
+            Halal Cash Payments
           </TabsTrigger>
           <TabsTrigger value="profit" data-testid="tab-profit">Profit Margins</TabsTrigger>
           <TabsTrigger value="stock" data-testid="tab-stock">Stock Movements</TabsTrigger>
           <TabsTrigger value="lowstock" data-testid="tab-lowstock">Low Stock Alerts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="halal" className="space-y-4">
+        <TabsContent value="invoices" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Invoice Halal Charge Details</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Invoice Details ({filteredInvoices.length})</CardTitle>
+              <Button variant="outline" size="sm" onClick={downloadInvoiceReport} data-testid="button-download-invoices">
+                <Download className="h-4 w-4 mr-1" />
+                Download CSV
+              </Button>
             </CardHeader>
             <CardContent>
               <Table>
@@ -295,20 +666,20 @@ export default function Reports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {!profitLoss?.invoiceDetails || profitLoss.invoiceDetails.length === 0 ? (
+                  {filteredInvoices.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                        No invoices found
+                        No invoices found for selected date range
                       </TableCell>
                     </TableRow>
                   ) : (
-                    profitLoss.invoiceDetails.map((invoice) => (
+                    filteredInvoices.map((invoice) => (
                       <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
                         <TableCell className="font-medium font-mono">{invoice.invoiceNumber}</TableCell>
                         <TableCell>{invoice.date}</TableCell>
-                        <TableCell>{invoice.customerName}</TableCell>
+                        <TableCell>{getCustomerName(invoice.customerId)}</TableCell>
                         <TableCell className="text-right font-mono">
-                          {invoice.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          {formatCurrency(invoice.subtotal)}
                         </TableCell>
                         <TableCell className="text-center">
                           {invoice.includeHalalCharge ? (
@@ -328,12 +699,12 @@ export default function Reports() {
                         </TableCell>
                         <TableCell className="text-right font-mono text-primary font-semibold">
                           {invoice.includeHalalCharge 
-                            ? invoice.halalChargeAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })
+                            ? formatCurrency(invoice.halalChargeAmount || 0)
                             : "-"
                           }
                         </TableCell>
                         <TableCell className="text-right font-mono font-semibold">
-                          {invoice.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          {formatCurrency(invoice.grandTotal)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -344,101 +715,61 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="payments" className="space-y-4">
+        <TabsContent value="halal-cash" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Customer Payment Summary
-              </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <CardTitle>Direct Halal Cash Payments ({filteredHalalCash.length})</CardTitle>
+              <Button variant="outline" size="sm" onClick={downloadHalalCashReport} data-testid="button-download-halal-cash">
+                <Download className="h-4 w-4 mr-1" />
+                Download CSV
+              </Button>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Payment Method</TableHead>
                     <TableHead>Customer</TableHead>
-                    <TableHead className="text-right">Total Invoiced</TableHead>
-                    <TableHead className="text-right">Halal Amount</TableHead>
-                    <TableHead className="text-right">Total Paid</TableHead>
-                    <TableHead className="text-right">Balance Due</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {!profitLoss?.customerPaymentSummary || profitLoss.customerPaymentSummary.length === 0 ? (
+                  {filteredHalalCash.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        No customer payment data
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        No direct halal cash payments for selected date range
                       </TableCell>
                     </TableRow>
                   ) : (
-                    profitLoss.customerPaymentSummary.map((customer) => (
-                      <TableRow key={customer.customerId} data-testid={`row-payment-${customer.customerId}`}>
-                        <TableCell className="font-medium">{customer.customerName}</TableCell>
-                        <TableCell className="text-right font-mono">
-                          {customer.totalInvoiced.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                        </TableCell>
+                    <>
+                      {filteredHalalCash.map((payment) => (
+                        <TableRow key={payment.id} data-testid={`row-halal-cash-${payment.id}`}>
+                          <TableCell>{payment.date}</TableCell>
+                          <TableCell className="text-right font-mono font-semibold text-primary">
+                            {formatCurrency(payment.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{payment.paymentMethod}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {payment.customerId ? getCustomerName(payment.customerId) : "-"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{payment.notes || "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-muted/50 font-bold">
+                        <TableCell>TOTAL</TableCell>
                         <TableCell className="text-right font-mono text-primary">
-                          {customer.halalAmount > 0 
-                            ? customer.halalAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })
-                            : "-"
-                          }
+                          {formatCurrency(filteredHalalCash.reduce((sum, p) => sum + p.amount, 0))}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-primary">
-                          {customer.totalPaid.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-semibold">
-                          {customer.balance > 0 
-                            ? customer.balance.toLocaleString("en-IN", { style: "currency", currency: "INR" })
-                            : "-"
-                          }
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {customer.paymentStatus === "paid" && (
-                            <Badge variant="default" className="bg-primary">Paid</Badge>
-                          )}
-                          {customer.paymentStatus === "partial" && (
-                            <Badge variant="secondary" className="bg-amber-500 text-white">Partial</Badge>
-                          )}
-                          {customer.paymentStatus === "unpaid" && (
-                            <Badge variant="destructive">Unpaid</Badge>
-                          )}
-                        </TableCell>
+                        <TableCell colSpan={3}></TableCell>
                       </TableRow>
-                    ))
+                    </>
                   )}
                 </TableBody>
               </Table>
-              
-              {/* Summary Row */}
-              {profitLoss?.customerPaymentSummary && profitLoss.customerPaymentSummary.length > 0 && (
-                <div className="mt-4 pt-4 border-t flex flex-wrap gap-6 justify-end">
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Total Invoiced</p>
-                    <p className="text-lg font-bold font-mono">
-                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.totalInvoiced, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Total Halal</p>
-                    <p className="text-lg font-bold font-mono text-primary">
-                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.halalAmount, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Total Received</p>
-                    <p className="text-lg font-bold font-mono text-primary">
-                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.totalPaid, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Total Outstanding</p>
-                    <p className="text-lg font-bold font-mono text-destructive">
-                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.balance, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                    </p>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -471,13 +802,13 @@ export default function Reports() {
                       <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell className="text-right font-mono">
-                          {product.purchasePrice.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          {formatCurrency(product.purchasePrice)}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {product.salePrice.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          {formatCurrency(product.salePrice)}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {product.margin.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          {formatCurrency(product.margin)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant={product.marginPercent >= 20 ? "default" : "secondary"}>
@@ -495,38 +826,32 @@ export default function Reports() {
 
         <TabsContent value="stock" className="space-y-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle>Stock Movement Report</CardTitle>
+              <Button variant="outline" size="sm" onClick={downloadStockReport} data-testid="button-download-stock">
+                <Download className="h-4 w-4 mr-1" />
+                Download CSV
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-end gap-4 flex-wrap">
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    data-testid="input-start-date"
-                  />
+              <div className="flex gap-4 flex-wrap">
+                <div className="text-center px-4 py-2 rounded-md bg-primary/10">
+                  <p className="text-xs text-muted-foreground">Stock In</p>
+                  <p className="text-xl font-bold font-mono" data-testid="text-stock-in">
+                    {stockInTotal.toFixed(2)}
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    data-testid="input-end-date"
-                  />
+                <div className="text-center px-4 py-2 rounded-md bg-destructive/10">
+                  <p className="text-xs text-muted-foreground">Stock Out</p>
+                  <p className="text-xl font-bold font-mono" data-testid="text-stock-out">
+                    {stockOutTotal.toFixed(2)}
+                  </p>
                 </div>
-                <div className="flex gap-4">
-                  <div className="text-center px-4 py-2 rounded-md bg-primary/10">
-                    <p className="text-xs text-muted-foreground">Stock In</p>
-                    <p className="text-lg font-bold font-mono text-primary" data-testid="text-stock-in-total">{stockInTotal}</p>
-                  </div>
-                  <div className="text-center px-4 py-2 rounded-md bg-destructive/10">
-                    <p className="text-xs text-muted-foreground">Stock Out</p>
-                    <p className="text-lg font-bold font-mono text-destructive" data-testid="text-stock-out-total">{stockOutTotal}</p>
-                  </div>
+                <div className="text-center px-4 py-2 rounded-md bg-muted">
+                  <p className="text-xs text-muted-foreground">Net Change</p>
+                  <p className={`text-xl font-bold font-mono ${stockInTotal - stockOutTotal >= 0 ? "text-primary" : "text-destructive"}`}>
+                    {(stockInTotal - stockOutTotal).toFixed(2)}
+                  </p>
                 </div>
               </div>
 
@@ -544,26 +869,31 @@ export default function Reports() {
                   {filteredMovements.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No stock movements in selected period
+                        No stock movements for selected date range
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredMovements.map((movement) => (
+                    filteredMovements.slice(0, 50).map((movement) => (
                       <TableRow key={movement.id} data-testid={`row-movement-${movement.id}`}>
                         <TableCell>{movement.date}</TableCell>
                         <TableCell className="font-medium">{getProductName(movement.productId)}</TableCell>
                         <TableCell>
-                          <Badge variant={movement.type === "in" ? "default" : "secondary"}>
-                            {movement.type === "in" ? "Stock In" : "Stock Out"}
+                          <Badge variant={movement.type === "in" ? "default" : "destructive"}>
+                            {movement.type.toUpperCase()}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right font-mono">{movement.quantity}</TableCell>
-                        <TableCell className="text-muted-foreground">{movement.reason}</TableCell>
+                        <TableCell className="text-muted-foreground">{movement.reason || "-"}</TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
+              {filteredMovements.length > 50 && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Showing first 50 movements. Download CSV for full report.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -571,7 +901,10 @@ export default function Reports() {
         <TabsContent value="lowstock" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Low Stock Alerts</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-amber-500" />
+                Low Stock Alerts ({lowStockProducts.length})
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -580,26 +913,28 @@ export default function Reports() {
                     <TableHead>Product</TableHead>
                     <TableHead className="text-right">Current Stock</TableHead>
                     <TableHead className="text-right">Reorder Level</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lowStockProducts.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                        All products are well-stocked
+                        All products are above reorder level
                       </TableCell>
                     </TableRow>
                   ) : (
                     lowStockProducts.map((product) => (
                       <TableRow key={product.id} data-testid={`row-lowstock-${product.id}`}>
                         <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="text-right font-mono">{product.currentStock} {product.unit}</TableCell>
-                        <TableCell className="text-right font-mono">{product.reorderLevel} {product.unit}</TableCell>
-                        <TableCell>
-                          <Badge variant={product.currentStock === 0 ? "destructive" : "secondary"}>
-                            {product.currentStock === 0 ? "Out of Stock" : "Low Stock"}
-                          </Badge>
+                        <TableCell className="text-right font-mono">{product.currentStock}</TableCell>
+                        <TableCell className="text-right font-mono">{product.reorderLevel || 10}</TableCell>
+                        <TableCell className="text-right">
+                          {product.currentStock === 0 ? (
+                            <Badge variant="destructive">Out of Stock</Badge>
+                          ) : (
+                            <Badge className="bg-amber-500">Low Stock</Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

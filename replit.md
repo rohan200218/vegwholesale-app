@@ -122,25 +122,33 @@ shared/
 - Payment history for audit
 
 ### Reports
-- Profit/loss calculations (including vendor returns in net cost)
-- **Halal Charge Summary Section:**
-  - Total Halal collected (invoice Halal + direct cash)
-  - From Invoices: Halal amount from invoices with count
-  - Direct Cash: Halal cash given directly (not through invoices)
-  - Invoices without Halal: count and sales total
-- **Invoice Details Tab:**
+- **Date Range Filtering**: Filter all reports by from/to date
+- **View By Options**:
+  - All Data: Shows complete data for date range
+  - Day-wise: Aggregated daily summary with sales, invoices, Halal breakdown
+  - Monthly: Aggregated monthly summary
+- **Download CSV**: Each report section has download button
+  - Daily report CSV
+  - Monthly report CSV
+  - Invoice details CSV
+  - Halal cash payments CSV
+  - Stock movements CSV
+- **Summary Cards**:
+  - Total Sales for filtered period
+  - Halal from Invoices with count
+  - Halal Direct Cash with count
+  - Total Halal Collected
+- **Invoice Details Tab**:
   - Each invoice with Halal status badge (Included/Excluded)
   - Halal percentage and amount per invoice
   - Subtotal and grand total breakdown
-- **Customer Payment Summary Tab:**
-  - Total invoiced per customer
-  - Halal amount collected per customer
-  - Total paid and balance due
-  - Payment status (Paid/Partial/Unpaid)
-- Vendor returns tracking and totals
-- Product margin analysis
-- Stock movement reports with date filtering
-- Low stock alerts
+- **Halal Cash Payments Tab**:
+  - All direct cash payments with date, amount, method
+  - Customer association if any
+  - Running total
+- **Profit Margins Tab**: Product-wise margin analysis
+- **Stock Movements Tab**: In/out movements with reason
+- **Low Stock Alerts Tab**: Products below reorder level
 
 ### Print Center
 - Generate tax invoices
