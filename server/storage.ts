@@ -366,6 +366,20 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
+    // Auto-create hamali cash payment if paid by cash
+    if (insertInvoice.includeHamaliCharge && insertInvoice.hamaliPaidByCash && invoice.hamaliChargeAmount && invoice.hamaliChargeAmount > 0) {
+      await db.insert(hamaliCashPayments).values({
+        amount: invoice.hamaliChargeAmount,
+        date: insertInvoice.date,
+        paymentMethod: "cash",
+        customerId: insertInvoice.customerId,
+        invoiceId: invoice.id,
+        invoiceNumber: insertInvoice.invoiceNumber,
+        totalBillAmount: invoice.grandTotal,
+        notes: `Auto-recorded from Invoice ${insertInvoice.invoiceNumber}`,
+      });
+    }
+
     return invoice;
   }
 

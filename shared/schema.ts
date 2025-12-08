@@ -259,6 +259,9 @@ export const hamaliCashPayments = pgTable("halal_cash_payments", {
   date: text("date").notNull(),
   paymentMethod: text("payment_method").notNull().default("cash"),
   customerId: varchar("customer_id"), // optional - which customer gave the cash
+  invoiceId: varchar("invoice_id"), // linked invoice if auto-created from weighing
+  invoiceNumber: text("invoice_number"), // invoice number for easy display
+  totalBillAmount: real("total_bill_amount"), // total bill amount from invoice
   notes: text("notes"),
 });
 

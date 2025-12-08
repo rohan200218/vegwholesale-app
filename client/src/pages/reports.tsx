@@ -35,6 +35,9 @@ type HamaliCashPayment = {
   date: string;
   paymentMethod: string;
   customerId?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  totalBillAmount?: number;
   notes?: string;
 };
 
@@ -347,15 +350,17 @@ export default function Reports() {
   };
 
   const downloadHamaliCashReport = () => {
-    const headers = ["Date", "Amount", "Payment Method", "Customer", "Notes"];
+    const headers = ["Date", "Invoice #", "Customer", "Hamali Amount", "Total Bill", "Payment Method", "Notes"];
     const rows = filteredHamaliCash.map((payment) => [
       payment.date,
-      payment.amount.toFixed(2),
-      payment.paymentMethod,
+      payment.invoiceNumber || "Manual Entry",
       payment.customerId ? getCustomerName(payment.customerId) : "-",
+      payment.amount.toFixed(2),
+      payment.totalBillAmount ? payment.totalBillAmount.toFixed(2) : "-",
+      payment.paymentMethod,
       payment.notes || "-",
     ]);
-    const totals = ["TOTAL", filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0).toFixed(2), "", "", ""];
+    const totals = ["TOTAL", "", "", filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0).toFixed(2), "", "", ""];
     downloadCSV([headers, ...rows, totals], `hamali-cash-report-${startDate}-to-${endDate}.csv`);
   };
 
@@ -722,7 +727,7 @@ export default function Reports() {
         <TabsContent value="hamali-cash" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle>Direct Hamali Cash Payments ({filteredHamaliCash.length})</CardTitle>
+              <CardTitle>Hamali Cash Payments ({filteredHamaliCash.length})</CardTitle>
               <Button variant="outline" size="sm" onClick={downloadHamaliCashReport} data-testid="button-download-hamali-cash">
                 <Download className="h-4 w-4 mr-1" />
                 Download CSV
@@ -733,17 +738,19 @@ export default function Reports() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Payment Method</TableHead>
+                    <TableHead>Invoice #</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Hamali Amount</TableHead>
+                    <TableHead className="text-right">Total Bill</TableHead>
+                    <TableHead>Payment</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredHamaliCash.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No direct hamali cash payments for selected date range
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        No hamali cash payments for selected date range
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -751,24 +758,37 @@ export default function Reports() {
                       {filteredHamaliCash.map((payment) => (
                         <TableRow key={payment.id} data-testid={`row-hamali-cash-${payment.id}`}>
                           <TableCell>{payment.date}</TableCell>
+                          <TableCell className="font-mono">
+                            {payment.invoiceNumber ? (
+                              <Badge variant="outline">{payment.invoiceNumber}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">Manual Entry</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {payment.customerId ? getCustomerName(payment.customerId) : "-"}
+                          </TableCell>
                           <TableCell className="text-right font-mono font-semibold text-primary">
                             {formatCurrency(payment.amount)}
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{payment.paymentMethod}</Badge>
+                          <TableCell className="text-right font-mono">
+                            {payment.totalBillAmount ? formatCurrency(payment.totalBillAmount) : "-"}
                           </TableCell>
                           <TableCell>
-                            {payment.customerId ? getCustomerName(payment.customerId) : "-"}
+                            <Badge variant="secondary">{payment.paymentMethod}</Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{payment.notes || "-"}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{payment.notes || "-"}</TableCell>
                         </TableRow>
                       ))}
                       <TableRow className="bg-muted/50 font-bold">
-                        <TableCell>TOTAL</TableCell>
+                        <TableCell colSpan={3}>TOTAL</TableCell>
                         <TableCell className="text-right font-mono text-primary">
                           {formatCurrency(filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0))}
                         </TableCell>
-                        <TableCell colSpan={3}></TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(filteredHamaliCash.reduce((sum, p) => sum + (p.totalBillAmount || 0), 0))}
+                        </TableCell>
+                        <TableCell colSpan={2}></TableCell>
                       </TableRow>
                     </>
                   )}
