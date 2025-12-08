@@ -1,13 +1,30 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 
-export function useAuth() {
-  const queryClient = useQueryClient();
+async function fetchUser(): Promise<User | null> {
+  const response = await fetch("/api/auth/user", {
+    credentials: "include",
+  });
+  
+  if (response.status === 401) {
+    return null;
+  }
+  
+  if (!response.ok) {
+    throw new Error("Failed to fetch user");
+  }
+  
+  return response.json();
+}
 
+export function useAuth() {
   const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/api/auth/user"],
+    queryFn: fetchUser,
     retry: false,
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
   });
 
   const login = () => {
@@ -21,7 +38,7 @@ export function useAuth() {
   return {
     user: user ?? null,
     isLoading,
-    isAuthenticated: !!user && !error,
+    isAuthenticated: !!user,
     error,
     login,
     logout,

@@ -5,6 +5,7 @@ A comprehensive business management system for vegetable wholesale operations. T
 
 ## Current State
 Full-featured application with complete business workflow:
+- **User Authentication** via Replit Auth (Google, GitHub, email/password)
 - Vendor management with payment tracking
 - Customer management with receivables tracking
 - Vehicle tracking
@@ -236,6 +237,8 @@ shared/
 - POST /api/company-settings
 
 ## Database Schema (PostgreSQL)
+- users - User accounts (Replit Auth)
+- sessions - User session storage
 - vendors - Vendor information
 - customers - Customer information
 - vehicles - Vehicle tracking
@@ -249,7 +252,10 @@ shared/
 - invoice_items - Invoice line items
 - vendor_payments - Vendor payment records
 - customer_payments - Customer payment records
+- halal_cash_payments - Direct Halal cash payments
 - company_settings - Company configuration
+- vehicle_inventory - Per-vehicle product quantities
+- vehicle_inventory_movements - Vehicle stock load/sale history
 
 ## Design System
 - Font: IBM Plex Sans (primary), IBM Plex Mono (numbers)
