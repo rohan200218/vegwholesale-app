@@ -82,6 +82,7 @@ shared/
 - Add/reduce stock with reasons
 - Stock movement history with date filtering
 - Low stock alerts
+- Separate "Returned" column showing vendor return quantities
 
 ### Purchase Orders
 - Create purchases from vendors
@@ -121,7 +122,8 @@ shared/
 - Payment history for audit
 
 ### Reports
-- Profit/loss calculations
+- Profit/loss calculations (including vendor returns in net cost)
+- Vendor returns tracking and totals
 - Product margin analysis
 - Stock movement reports with date filtering
 - Low stock alerts
