@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Scale, Plus, Trash2, Truck, User, FileText, Wifi, WifiOff, RefreshCw } from "lucide-react";
+import { Scale, Plus, Trash2, Truck, User, FileText, Wifi, WifiOff, RefreshCw, HandCoins } from "lucide-react";
 import type { Vehicle, Customer, Product, VehicleInventory } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -61,6 +61,11 @@ export default function Weighing() {
   const [weighingItems, setWeighingItems] = useState<WeighingItem[]>([]);
   const [includeHalalCharge, setIncludeHalalCharge] = useState(false);
   const [halalChargePercent, setHalalChargePercent] = useState("5");
+  
+  // Halal Cash by Hand (direct cash payment separate from invoice)
+  const [includeHalalCash, setIncludeHalalCash] = useState(false);
+  const [halalCashPercent, setHalalCashPercent] = useState("5");
+  const [halalCashAmount, setHalalCashAmount] = useState("");
   
   // Scale connection state
   const [scaleConnected, setScaleConnected] = useState(false);
@@ -192,6 +197,8 @@ export default function Weighing() {
       setWeighingItems([]);
       setSelectedCustomer("");
       setSelectedVehicle("");
+      setIncludeHalalCash(false);
+      setHalalCashAmount("");
       toast({ title: "Invoice Created", description: "Weighing completed and invoice generated successfully." });
     },
     onError: () => {
@@ -263,6 +270,26 @@ export default function Weighing() {
   const subtotal = weighingItems.reduce((sum, item) => sum + item.total, 0);
   const halalAmount = includeHalalCharge ? (subtotal * parseFloat(halalChargePercent || "0")) / 100 : 0;
   const grandTotal = subtotal + halalAmount;
+  
+  // Calculate Halal cash amount when subtotal or percentage changes
+  const calculatedHalalCash = (subtotal * parseFloat(halalCashPercent || "0")) / 100;
+  
+  // Auto-update halal cash amount when subtotal changes (if using auto-calculation)
+  useEffect(() => {
+    if (includeHalalCash && !halalCashAmount) {
+      setHalalCashAmount(calculatedHalalCash.toFixed(2));
+    }
+  }, [subtotal, halalCashPercent, includeHalalCash]);
+  
+  // Mutation to create halal cash payment
+  const createHalalCash = useMutation({
+    mutationFn: async (data: { amount: number; date: string; paymentMethod: string; customerId?: string; notes?: string }) => {
+      return apiRequest("POST", "/api/halal-cash", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/halal-cash"] });
+    },
+  });
 
   const handleGenerateInvoice = () => {
     if (!selectedCustomer) {
@@ -277,6 +304,19 @@ export default function Weighing() {
 
     const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
     const today = new Date().toISOString().split("T")[0];
+    
+    // Create halal cash payment if enabled
+    const halalCashValue = parseFloat(halalCashAmount || "0");
+    if (includeHalalCash && halalCashValue > 0) {
+      const customerName = customers.find(c => c.id === selectedCustomer)?.name || "";
+      createHalalCash.mutate({
+        amount: halalCashValue,
+        date: today,
+        paymentMethod: "cash",
+        customerId: selectedCustomer,
+        notes: `Halal cash from ${customerName} - Invoice ${invoiceNumber}`,
+      });
+    }
 
     createInvoice.mutate({
       customerId: selectedCustomer,
@@ -720,6 +760,65 @@ export default function Weighing() {
                     <span className="ml-auto font-mono text-sm" data-testid="text-halal-amount">
                       {halalAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                     </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Halal Cash by Hand Section */}
+              <div className="space-y-3 pt-3 border-t">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="halalCash"
+                    checked={includeHalalCash}
+                    onChange={(e) => {
+                      setIncludeHalalCash(e.target.checked);
+                      if (e.target.checked && subtotal > 0) {
+                        setHalalCashAmount(calculatedHalalCash.toFixed(2));
+                      } else if (!e.target.checked) {
+                        setHalalCashAmount("");
+                      }
+                    }}
+                    className="rounded"
+                    data-testid="checkbox-halal-cash"
+                  />
+                  <Label htmlFor="halalCash" className="text-sm flex items-center gap-1">
+                    <HandCoins className="h-3 w-3" />
+                    Halal Cash by Hand
+                  </Label>
+                </div>
+                {includeHalalCash && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={halalCashPercent}
+                        onChange={(e) => {
+                          setHalalCashPercent(e.target.value);
+                          const newCalc = (subtotal * parseFloat(e.target.value || "0")) / 100;
+                          setHalalCashAmount(newCalc.toFixed(2));
+                        }}
+                        className="w-20"
+                        data-testid="input-halal-cash-percent"
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                      <span className="text-sm text-muted-foreground">=</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Amount:</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={halalCashAmount}
+                        onChange={(e) => setHalalCashAmount(e.target.value)}
+                        className="flex-1"
+                        placeholder="Enter amount"
+                        data-testid="input-halal-cash-amount"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Cash given directly for Halal (recorded separately from invoice)
+                    </p>
                   </div>
                 )}
               </div>
