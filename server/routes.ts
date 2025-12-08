@@ -12,6 +12,7 @@ import {
   insertCompanySettingsSchema,
   insertVendorReturnSchema,
   insertVendorReturnItemSchema,
+  insertHalalCashPaymentSchema,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -494,6 +495,35 @@ export async function registerRoutes(
     }
   });
 
+  // Halal Cash Payments (direct cash payments not through invoices)
+  app.get("/api/halal-cash", async (req, res) => {
+    const payments = await storage.getHalalCashPayments();
+    res.json(payments);
+  });
+
+  app.post("/api/halal-cash", async (req, res) => {
+    try {
+      const data = insertHalalCashPaymentSchema.parse(req.body);
+      const payment = await storage.createHalalCashPayment(data);
+      res.status(201).json(payment);
+    } catch (error) {
+      console.error("Halal cash payment error:", error);
+      res.status(400).json({ error: "Invalid Halal cash payment data" });
+    }
+  });
+
+  app.delete("/api/halal-cash/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteHalalCashPayment(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Halal cash payment not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete Halal cash payment" });
+    }
+  });
+
   // Reports
   app.get("/api/reports/profit-loss", async (req, res) => {
     try {
@@ -503,6 +533,7 @@ export async function registerRoutes(
       const vendorReturns = await storage.getVendorReturns();
       const customers = await storage.getCustomers();
       const allCustomerPayments = await storage.getCustomerPayments();
+      const halalCashPayments = await storage.getHalalCashPayments();
 
       let totalPurchases = 0;
       let totalSales = 0;
@@ -533,11 +564,14 @@ export async function registerRoutes(
       }));
 
       // Halal charge breakdown
-      let totalHalalCollected = 0;
+      let invoiceHalalTotal = 0;  // Halal from invoices
       let invoicesWithHalal = 0;
       let invoicesWithoutHalal = 0;
       let salesWithHalal = 0;  // Grand total of invoices WITH Halal charge
       let salesWithoutHalal = 0;  // Grand total of invoices WITHOUT Halal charge
+      
+      // Direct cash payments to Halal
+      const directCashHalalTotal = halalCashPayments.reduce((sum, p) => sum + p.amount, 0);
 
       // Build invoice details with payment info
       const invoiceDetails = invoices.map((invoice) => {
@@ -547,7 +581,7 @@ export async function registerRoutes(
         // Track Halal amounts - only count actual Halal charge amount
         if (invoice.includeHalalCharge) {
           invoicesWithHalal++;
-          totalHalalCollected += invoice.halalChargeAmount || 0;
+          invoiceHalalTotal += invoice.halalChargeAmount || 0;
           salesWithHalal += invoice.grandTotal;
         } else {
           invoicesWithoutHalal++;
@@ -601,7 +635,9 @@ export async function registerRoutes(
         productProfits,
         // Halal charge data
         halalSummary: {
-          totalHalalCollected,
+          invoiceHalalTotal,
+          directCashHalalTotal,
+          totalHalalCollected: invoiceHalalTotal + directCashHalalTotal,
           invoicesWithHalal,
           invoicesWithoutHalal,
           salesWithHalal,
@@ -609,6 +645,7 @@ export async function registerRoutes(
         },
         invoiceDetails,
         customerPaymentSummary,
+        halalCashPayments,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to generate report" });
