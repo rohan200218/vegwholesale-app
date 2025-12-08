@@ -13,12 +13,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw } from "lucide-react";
 import type { Product, StockMovement } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type ProfitLossReport = {
   totalPurchases: number;
+  totalReturns: number;
+  netPurchases: number;
   totalSales: number;
   grossProfit: number;
   productProfits: {
@@ -67,7 +69,8 @@ export default function Reports() {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <Skeleton className="h-32" />
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
@@ -86,7 +89,7 @@ export default function Reports() {
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -99,6 +102,21 @@ export default function Reports() {
               {(profitLoss?.totalPurchases || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
             </div>
             <p className="text-xs text-muted-foreground">Cost of goods</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Vendor Returns
+            </CardTitle>
+            <RotateCcw className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400" data-testid="text-total-returns">
+              {(profitLoss?.totalReturns || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+            </div>
+            <p className="text-xs text-muted-foreground">Returned to vendors</p>
           </CardContent>
         </Card>
 
@@ -132,7 +150,7 @@ export default function Reports() {
             <div className={`text-2xl font-bold font-mono ${(profitLoss?.grossProfit || 0) >= 0 ? "text-primary" : "text-destructive"}`} data-testid="text-gross-profit">
               {(profitLoss?.grossProfit || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
             </div>
-            <p className="text-xs text-muted-foreground">Sales - Purchases</p>
+            <p className="text-xs text-muted-foreground">Sales - Net Purchases</p>
           </CardContent>
         </Card>
 

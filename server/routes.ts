@@ -500,9 +500,11 @@ export async function registerRoutes(
       const products = await storage.getProducts();
       const invoices = await storage.getInvoices();
       const purchases = await storage.getPurchases();
+      const vendorReturns = await storage.getVendorReturns();
 
       let totalPurchases = 0;
       let totalSales = 0;
+      let totalReturns = 0;
 
       for (const purchase of purchases) {
         totalPurchases += purchase.totalAmount;
@@ -511,6 +513,13 @@ export async function registerRoutes(
       for (const invoice of invoices) {
         totalSales += invoice.grandTotal;
       }
+
+      for (const vendorReturn of vendorReturns) {
+        totalReturns += vendorReturn.totalAmount;
+      }
+
+      // Net purchases = purchases - returns (returns reduce cost of goods)
+      const netPurchases = totalPurchases - totalReturns;
 
       const productProfits = products.map((p) => ({
         id: p.id,
@@ -523,8 +532,10 @@ export async function registerRoutes(
 
       res.json({
         totalPurchases,
+        totalReturns,
+        netPurchases,
         totalSales,
-        grossProfit: totalSales - totalPurchases,
+        grossProfit: totalSales - netPurchases,
         productProfits,
       });
     } catch (error) {

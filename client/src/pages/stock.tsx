@@ -139,10 +139,17 @@ export default function Stock() {
       .reduce((sum, m) => sum + m.quantity, 0);
   };
 
-  // Calculate sold/out stock per product
+  // Calculate sold/out stock per product (excluding returns)
   const getSoldStock = (productId: string) => {
     return movements
-      .filter((m) => m.productId === productId && m.type === "out")
+      .filter((m) => m.productId === productId && m.type === "out" && !m.reason?.startsWith("Vendor return"))
+      .reduce((sum, m) => sum + m.quantity, 0);
+  };
+
+  // Calculate returned stock per product
+  const getReturnedStock = (productId: string) => {
+    return movements
+      .filter((m) => m.productId === productId && m.type === "out" && m.reason?.startsWith("Vendor return"))
       .reduce((sum, m) => sum + m.quantity, 0);
   };
 
@@ -269,6 +276,7 @@ export default function Stock() {
                     <TableHead>Entry Date</TableHead>
                     <TableHead className="text-right">Entry Stock</TableHead>
                     <TableHead className="text-right">Sold</TableHead>
+                    <TableHead className="text-right">Returned</TableHead>
                     <TableHead className="text-right">Available</TableHead>
                     <TableHead className="text-right">Value</TableHead>
                     <TableHead>Status</TableHead>
@@ -282,6 +290,7 @@ export default function Stock() {
                     const stockValue = product.currentStock * product.purchasePrice;
                     const entryStock = getEntryStock(product.id);
                     const soldStock = getSoldStock(product.id);
+                    const returnedStock = getReturnedStock(product.id);
                     const firstEntryDate = getFirstEntryDate(product.id);
                     const lastEntryDate = getLastEntryDate(product.id);
 
@@ -314,6 +323,9 @@ export default function Stock() {
                         </TableCell>
                         <TableCell className="text-right font-mono text-muted-foreground">
                           {soldStock.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
+                          {returnedStock > 0 ? returnedStock.toFixed(2) : "-"}
                         </TableCell>
                         <TableCell className="text-right font-mono font-semibold">
                           {product.currentStock.toFixed(2)}
