@@ -90,8 +90,11 @@ shared/
 
 ### Weighing Station
 - Select truck/vehicle and customer
-- Weigh products from the scale
-- Add multiple items with actual weights
+- Multi-unit support:
+  - Weight-based products (KG): Use scale capture or manual entry
+  - Count-based products (Box, Bag, Crate, Piece, Dozen, Bundle): Manual quantity with +/- buttons
+- Auto-detect product unit and show appropriate input method
+- Vehicle inventory display with available quantities
 - Quick invoice generation from weighing
 - Halal charge toggle with percentage
 
