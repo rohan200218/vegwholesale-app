@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Scale, Plus, Trash2, Truck, User, FileText } from "lucide-react";
+import { Scale, Plus, Trash2, Truck, User, FileText, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import type { Vehicle, Customer, Product } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -45,6 +46,13 @@ export default function Weighing() {
   const [weighingItems, setWeighingItems] = useState<WeighingItem[]>([]);
   const [includeHalalCharge, setIncludeHalalCharge] = useState(false);
   const [halalChargePercent, setHalalChargePercent] = useState("5");
+  
+  // Scale connection state
+  const [scaleConnected, setScaleConnected] = useState(false);
+  const [liveWeight, setLiveWeight] = useState<number>(0);
+  const [weightStable, setWeightStable] = useState(false);
+  const [demoMode, setDemoMode] = useState(true);
+  const demoIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<Vehicle[]>({
     queryKey: ["/api/vehicles"],
@@ -57,6 +65,60 @@ export default function Weighing() {
   const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
   });
+
+  // Demo mode: simulate weight changes
+  useEffect(() => {
+    if (demoMode && scaleConnected) {
+      demoIntervalRef.current = setInterval(() => {
+        // Simulate fluctuating weight that stabilizes
+        const baseWeight = Math.random() * 50 + 10;
+        const fluctuation = Math.random() * 0.5 - 0.25;
+        setLiveWeight(parseFloat((baseWeight + fluctuation).toFixed(2)));
+        setWeightStable(Math.random() > 0.3);
+      }, 500);
+    } else {
+      if (demoIntervalRef.current) {
+        clearInterval(demoIntervalRef.current);
+      }
+    }
+    return () => {
+      if (demoIntervalRef.current) {
+        clearInterval(demoIntervalRef.current);
+      }
+    };
+  }, [demoMode, scaleConnected]);
+
+  const toggleScaleConnection = () => {
+    if (scaleConnected) {
+      setScaleConnected(false);
+      setLiveWeight(0);
+      setWeightStable(false);
+    } else {
+      setScaleConnected(true);
+      toast({
+        title: demoMode ? "Demo Mode Active" : "Connecting to Scale",
+        description: demoMode 
+          ? "Simulating weight readings. Connect real scale when ready." 
+          : "Attempting to connect to weighing machine...",
+      });
+    }
+  };
+
+  const captureWeight = () => {
+    if (weightStable && liveWeight > 0) {
+      setWeight(liveWeight.toFixed(2));
+      toast({
+        title: "Weight Captured",
+        description: `Captured ${liveWeight.toFixed(2)} KG from scale`,
+      });
+    } else {
+      toast({
+        title: "Weight Not Stable",
+        description: "Please wait for the weight to stabilize before capturing.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const createInvoice = useMutation({
     mutationFn: async (data: {
@@ -89,7 +151,7 @@ export default function Weighing() {
 
   const addWeighingItem = () => {
     if (!selectedProduct || !weight || parseFloat(weight) <= 0) {
-      toast({ title: "Invalid Entry", description: "Please select a product and enter a valid weight.", variant: "destructive" });
+      toast({ title: "Invalid Entry", description: "Please select a product and capture/enter a valid weight.", variant: "destructive" });
       return;
     }
 
@@ -176,10 +238,84 @@ export default function Weighing() {
             Weighing Station
           </h1>
         </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="demo-mode" className="text-sm text-muted-foreground">Demo Mode</Label>
+            <Switch
+              id="demo-mode"
+              checked={demoMode}
+              onCheckedChange={setDemoMode}
+              data-testid="switch-demo-mode"
+            />
+          </div>
+          <Badge variant={scaleConnected ? "default" : "secondary"} className="gap-1">
+            {scaleConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+            {scaleConnected ? "Connected" : "Disconnected"}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Live Scale Display */}
+          <Card className={scaleConnected ? "border-primary" : ""}>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Scale className="h-4 w-4" />
+                  Live Scale Reading
+                </div>
+                <Button
+                  variant={scaleConnected ? "destructive" : "default"}
+                  size="sm"
+                  onClick={toggleScaleConnection}
+                  data-testid="button-toggle-scale"
+                >
+                  {scaleConnected ? "Disconnect" : "Connect Scale"}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <div className={`text-5xl font-mono font-bold text-center py-6 rounded-md ${
+                    scaleConnected 
+                      ? weightStable 
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" 
+                        : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
+                      : "bg-muted text-muted-foreground"
+                  }`} data-testid="display-live-weight">
+                    {scaleConnected ? `${liveWeight.toFixed(2)} KG` : "-- KG"}
+                  </div>
+                  <div className="text-center mt-2 text-sm">
+                    {scaleConnected ? (
+                      weightStable ? (
+                        <span className="text-green-600 dark:text-green-400">Weight Stable</span>
+                      ) : (
+                        <span className="text-yellow-600 dark:text-yellow-400 flex items-center justify-center gap-1">
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                          Stabilizing...
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-muted-foreground">Scale not connected</span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={captureWeight}
+                  disabled={!scaleConnected || !weightStable || liveWeight <= 0}
+                  className="min-w-[150px]"
+                  data-testid="button-capture-weight"
+                >
+                  <Scale className="h-4 w-4 mr-2" />
+                  Capture Weight
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -254,7 +390,7 @@ export default function Weighing() {
                     step="0.01"
                     value={weight}
                     onChange={(e) => setWeight(e.target.value)}
-                    placeholder="Enter weight"
+                    placeholder={scaleConnected ? "From scale" : "Enter weight"}
                     data-testid="input-weight"
                   />
                 </div>
@@ -279,7 +415,7 @@ export default function Weighing() {
                     {weighingItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                          No items weighed yet. Add products from the scale.
+                          No items weighed yet. {scaleConnected ? "Capture weight from the scale and add items." : "Connect scale or enter weight manually."}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -351,11 +487,11 @@ export default function Weighing() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between gap-2 text-sm">
                   <span>Items</span>
                   <Badge variant="secondary">{weighingItems.length}</Badge>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between gap-2 text-sm">
                   <span>Subtotal</span>
                   <span className="font-mono" data-testid="text-subtotal">
                     {subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
@@ -393,7 +529,7 @@ export default function Weighing() {
               </div>
 
               <div className="pt-3 border-t">
-                <div className="flex justify-between text-lg font-bold">
+                <div className="flex justify-between gap-2 text-lg font-bold">
                   <span>Grand Total</span>
                   <span className="font-mono" data-testid="text-grand-total">
                     {grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
