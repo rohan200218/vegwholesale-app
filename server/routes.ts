@@ -298,6 +298,7 @@ export async function registerRoutes(
 
   const invoiceSchema = z.object({
     customerId: z.string(),
+    vehicleId: z.string().optional(),
     invoiceNumber: z.string(),
     date: z.string(),
     subtotal: z.number(),
@@ -384,18 +385,28 @@ export async function registerRoutes(
   // Vehicle Inventory
   app.get("/api/vehicles/:id/inventory", async (req, res) => {
     try {
+      const vehicle = await storage.getVehicle(req.params.id);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
       const inventory = await storage.getVehicleInventory(req.params.id);
       res.json(inventory);
     } catch (error) {
+      console.error("Error getting vehicle inventory:", error);
       res.status(500).json({ error: "Failed to get vehicle inventory" });
     }
   });
 
   app.get("/api/vehicles/:id/inventory/movements", async (req, res) => {
     try {
+      const vehicle = await storage.getVehicle(req.params.id);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
       const movements = await storage.getVehicleInventoryMovements(req.params.id);
       res.json(movements);
     } catch (error) {
+      console.error("Error getting inventory movements:", error);
       res.status(500).json({ error: "Failed to get inventory movements" });
     }
   });
@@ -408,6 +419,11 @@ export async function registerRoutes(
 
   app.post("/api/vehicles/:id/inventory/load", async (req, res) => {
     try {
+      const vehicle = await storage.getVehicle(req.params.id);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+      
       const data = loadInventorySchema.parse(req.body);
       const inventory = await storage.loadVehicleInventory(
         req.params.id,
@@ -417,6 +433,7 @@ export async function registerRoutes(
       );
       res.status(201).json(inventory);
     } catch (error) {
+      console.error("Error loading inventory:", error);
       res.status(400).json({ error: "Invalid inventory data" });
     }
   });

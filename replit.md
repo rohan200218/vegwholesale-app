@@ -214,6 +214,11 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 8, 2025: Added vehicle inventory tracking system
+  - Products loaded into vehicles via purchases are tracked separately
+  - Weighing station displays remaining stock per vehicle
+  - Invoice creation automatically deducts from vehicle inventory
+  - Movement history tracks all loading and selling activity
 - December 8, 2025: Added payments, reports, print center, and settings pages
 - December 8, 2025: Migrated from in-memory storage to PostgreSQL database
 - December 8, 2025: Initial MVP release with all core features

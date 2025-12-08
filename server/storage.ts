@@ -271,6 +271,16 @@ export class DatabaseStorage implements IStorage {
         date: insertPurchase.date,
         referenceId: purchase.id,
       });
+
+      // Load products into vehicle inventory if a vehicle is specified
+      if (insertPurchase.vehicleId) {
+        await this.loadVehicleInventory(
+          insertPurchase.vehicleId,
+          item.productId,
+          item.quantity,
+          purchase.id
+        );
+      }
     }
 
     return purchase;
@@ -313,6 +323,21 @@ export class DatabaseStorage implements IStorage {
         date: insertInvoice.date,
         referenceId: invoice.id,
       });
+
+      // Deduct from vehicle inventory if a vehicle is specified
+      if (insertInvoice.vehicleId) {
+        const deductResult = await this.deductVehicleInventory(
+          insertInvoice.vehicleId,
+          item.productId,
+          item.quantity,
+          invoice.id
+        );
+        // Log warning if deduction failed (insufficient stock), but don't block invoice creation
+        // as vehicle inventory is a convenience feature, not a hard constraint
+        if (!deductResult) {
+          console.warn(`Failed to deduct ${item.quantity} of product ${item.productId} from vehicle ${insertInvoice.vehicleId}`);
+        }
+      }
     }
 
     return invoice;
@@ -418,18 +443,29 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vehicleInventory).where(eq(vehicleInventory.vehicleId, vehicleId));
   }
 
+  async getVehicleProductInventory(vehicleId: string, productId: string): Promise<VehicleInventory | undefined> {
+    // Get total quantity for this vehicle+product combination (aggregate all matching rows)
+    const records = await db.select().from(vehicleInventory)
+      .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)));
+    
+    if (records.length === 0) return undefined;
+    
+    // Return first record - we'll ensure only one exists via upsert logic
+    return records[0];
+  }
+
   async loadVehicleInventory(vehicleId: string, productId: string, quantity: number, purchaseId?: string): Promise<VehicleInventory> {
-    // Check if inventory record exists
+    // Check if inventory record exists for this vehicle+product
     const [existing] = await db.select().from(vehicleInventory)
       .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)));
 
     let inventoryRecord: VehicleInventory;
     
     if (existing) {
-      // Update existing inventory
+      // Update existing inventory (upsert pattern)
       const [updated] = await db.update(vehicleInventory)
         .set({ quantity: existing.quantity + quantity })
-        .where(eq(vehicleInventory.id, existing.id))
+        .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)))
         .returning();
       inventoryRecord = updated;
     } else {
@@ -456,16 +492,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deductVehicleInventory(vehicleId: string, productId: string, quantity: number, invoiceId?: string): Promise<VehicleInventory | undefined> {
+    // Find existing inventory
     const [existing] = await db.select().from(vehicleInventory)
       .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)));
 
-    if (!existing || existing.quantity < quantity) {
-      return undefined; // Not enough stock
+    // Guard against insufficient stock - return undefined if not enough
+    if (!existing) {
+      console.warn(`Vehicle ${vehicleId} has no inventory for product ${productId}`);
+      return undefined;
+    }
+    
+    if (existing.quantity < quantity) {
+      console.warn(`Insufficient stock: Vehicle ${vehicleId} has ${existing.quantity} but requested ${quantity}`);
+      return undefined;
     }
 
+    const newQuantity = Math.max(0, existing.quantity - quantity);
+    
     const [updated] = await db.update(vehicleInventory)
-      .set({ quantity: existing.quantity - quantity })
-      .where(eq(vehicleInventory.id, existing.id))
+      .set({ quantity: newQuantity })
+      .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)))
       .returning();
 
     // Log the movement

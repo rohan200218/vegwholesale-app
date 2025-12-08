@@ -91,6 +91,7 @@ export const invoices = pgTable("invoices", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   invoiceNumber: text("invoice_number").notNull(),
   customerId: varchar("customer_id").notNull(),
+  vehicleId: varchar("vehicle_id"),
   date: text("date").notNull(),
   subtotal: real("subtotal").notNull(),
   includeHalalCharge: boolean("include_halal_charge").notNull().default(false),

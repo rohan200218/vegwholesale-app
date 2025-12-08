@@ -24,8 +24,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Scale, Plus, Trash2, Truck, User, FileText, Wifi, WifiOff, RefreshCw } from "lucide-react";
-import type { Vehicle, Customer, Product } from "@shared/schema";
+import type { Vehicle, Customer, Product, VehicleInventory } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Package } from "lucide-react";
 
 type WeighingItem = {
   id: string;
@@ -65,6 +67,27 @@ export default function Weighing() {
   const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
   });
+
+  // Vehicle inventory query
+  const { data: vehicleInventoryData = [], isLoading: inventoryLoading } = useQuery<VehicleInventory[]>({
+    queryKey: ["/api/vehicles", selectedVehicle, "inventory"],
+    queryFn: async () => {
+      if (!selectedVehicle) return [];
+      const res = await fetch(`/api/vehicles/${selectedVehicle}/inventory`);
+      return res.json();
+    },
+    enabled: !!selectedVehicle,
+  });
+
+  // Calculate remaining inventory (account for items added to current bill)
+  const getVehicleStock = (productId: string): number => {
+    const inventoryItem = vehicleInventoryData.find(inv => inv.productId === productId);
+    const baseQty = inventoryItem?.quantity || 0;
+    const usedQty = weighingItems
+      .filter(item => item.productId === productId)
+      .reduce((sum, item) => sum + item.weight, 0);
+    return Math.max(0, baseQty - usedQty);
+  };
 
   // Demo mode: simulate weight changes
   useEffect(() => {
@@ -123,6 +146,7 @@ export default function Weighing() {
   const createInvoice = useMutation({
     mutationFn: async (data: {
       customerId: string;
+      vehicleId?: string;
       invoiceNumber: string;
       date: string;
       subtotal: number;
@@ -137,6 +161,7 @@ export default function Weighing() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vehicles", selectedVehicle, "inventory"] });
       setWeighingItems([]);
       setSelectedCustomer("");
       setSelectedVehicle("");
@@ -159,6 +184,20 @@ export default function Weighing() {
     if (!product) return;
 
     const weightNum = parseFloat(weight);
+    
+    // Check vehicle inventory if a vehicle is selected
+    if (selectedVehicle && vehicleInventoryData.length > 0) {
+      const remainingStock = getVehicleStock(selectedProduct);
+      if (weightNum > remainingStock) {
+        toast({ 
+          title: "Insufficient Stock", 
+          description: `Only ${remainingStock.toFixed(2)} ${product.unit} available in the selected vehicle.`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+    
     const total = weightNum * product.salePrice;
 
     const newItem: WeighingItem = {
@@ -200,6 +239,7 @@ export default function Weighing() {
 
     createInvoice.mutate({
       customerId: selectedCustomer,
+      vehicleId: selectedVehicle || undefined,
       invoiceNumber,
       date: today,
       subtotal,
@@ -359,6 +399,44 @@ export default function Weighing() {
                   </Select>
                 </div>
               </div>
+
+              {/* Vehicle Inventory Display */}
+              {selectedVehicle && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Package className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Products in Vehicle</span>
+                    {inventoryLoading && <span className="text-xs text-muted-foreground">(Loading...)</span>}
+                  </div>
+                  {vehicleInventoryData.length === 0 && !inventoryLoading ? (
+                    <p className="text-sm text-muted-foreground">No products loaded in this vehicle</p>
+                  ) : (
+                    <ScrollArea className="h-32">
+                      <div className="space-y-1">
+                        {vehicleInventoryData.map((inv) => {
+                          const product = products.find(p => p.id === inv.productId);
+                          const remaining = getVehicleStock(inv.productId);
+                          return (
+                            <div 
+                              key={inv.id} 
+                              className="flex items-center justify-between gap-2 text-sm py-1"
+                              data-testid={`vehicle-stock-${inv.productId}`}
+                            >
+                              <span>{product?.name || "Unknown Product"}</span>
+                              <Badge 
+                                variant={remaining > 0 ? "secondary" : "outline"}
+                                className={remaining <= 0 ? "opacity-50" : ""}
+                              >
+                                {remaining.toFixed(1)} {product?.unit || "KG"}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
