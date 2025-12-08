@@ -146,6 +146,22 @@ export default function Stock() {
       .reduce((sum, m) => sum + m.quantity, 0);
   };
 
+  // Get first entry date for a product
+  const getFirstEntryDate = (productId: string) => {
+    const inMovements = movements
+      .filter((m) => m.productId === productId && m.type === "in")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return inMovements.length > 0 ? inMovements[0].date : null;
+  };
+
+  // Get last entry date for a product
+  const getLastEntryDate = (productId: string) => {
+    const inMovements = movements
+      .filter((m) => m.productId === productId && m.type === "in")
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return inMovements.length > 0 ? inMovements[0].date : null;
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -250,6 +266,7 @@ export default function Stock() {
                   <TableRow>
                     <TableHead>Product</TableHead>
                     <TableHead>Unit</TableHead>
+                    <TableHead>Entry Date</TableHead>
                     <TableHead className="text-right">Entry Stock</TableHead>
                     <TableHead className="text-right">Sold</TableHead>
                     <TableHead className="text-right">Available</TableHead>
@@ -265,6 +282,8 @@ export default function Stock() {
                     const stockValue = product.currentStock * product.purchasePrice;
                     const entryStock = getEntryStock(product.id);
                     const soldStock = getSoldStock(product.id);
+                    const firstEntryDate = getFirstEntryDate(product.id);
+                    const lastEntryDate = getLastEntryDate(product.id);
 
                     return (
                       <TableRow key={product.id} data-testid={`row-stock-${product.id}`}>
@@ -275,6 +294,20 @@ export default function Stock() {
                           <Badge variant="secondary" className="text-xs">
                             {product.unit}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {firstEntryDate ? (
+                            <div className="text-sm">
+                              <div>{firstEntryDate}</div>
+                              {lastEntryDate && lastEntryDate !== firstEntryDate && (
+                                <div className="text-xs text-muted-foreground">
+                                  Last: {lastEntryDate}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-mono text-muted-foreground">
                           {entryStock.toFixed(2)}
