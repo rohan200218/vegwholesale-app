@@ -7,6 +7,9 @@ import {
   insertVehicleSchema,
   insertProductSchema,
   insertStockMovementSchema,
+  insertVendorPaymentSchema,
+  insertCustomerPaymentSchema,
+  insertCompanySettingsSchema,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -26,6 +29,11 @@ export async function registerRoutes(
       return res.status(404).json({ error: "Vendor not found" });
     }
     res.json(vendor);
+  });
+
+  app.get("/api/vendors/:id/balance", async (req, res) => {
+    const balance = await storage.getVendorBalance(req.params.id);
+    res.json(balance);
   });
 
   app.post("/api/vendors", async (req, res) => {
@@ -71,6 +79,11 @@ export async function registerRoutes(
       return res.status(404).json({ error: "Customer not found" });
     }
     res.json(customer);
+  });
+
+  app.get("/api/customers/:id/balance", async (req, res) => {
+    const balance = await storage.getCustomerBalance(req.params.id);
+    res.json(balance);
   });
 
   app.post("/api/customers", async (req, res) => {
@@ -196,7 +209,11 @@ export async function registerRoutes(
 
   // Stock Movements
   app.get("/api/stock-movements", async (req, res) => {
-    const movements = await storage.getStockMovements();
+    const { startDate, endDate } = req.query;
+    const movements = await storage.getStockMovements(
+      startDate as string | undefined,
+      endDate as string | undefined
+    );
     res.json(movements);
   });
 
@@ -311,6 +328,130 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Invoice error:", error);
       res.status(400).json({ error: "Invalid invoice data" });
+    }
+  });
+
+  // Vendor Payments
+  app.get("/api/vendor-payments", async (req, res) => {
+    const { vendorId } = req.query;
+    const payments = await storage.getVendorPayments(vendorId as string | undefined);
+    res.json(payments);
+  });
+
+  app.post("/api/vendor-payments", async (req, res) => {
+    try {
+      const data = insertVendorPaymentSchema.parse(req.body);
+      const payment = await storage.createVendorPayment(data);
+      res.status(201).json(payment);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid payment data" });
+    }
+  });
+
+  // Customer Payments
+  app.get("/api/customer-payments", async (req, res) => {
+    const { customerId } = req.query;
+    const payments = await storage.getCustomerPayments(customerId as string | undefined);
+    res.json(payments);
+  });
+
+  app.post("/api/customer-payments", async (req, res) => {
+    try {
+      const data = insertCustomerPaymentSchema.parse(req.body);
+      const payment = await storage.createCustomerPayment(data);
+      res.status(201).json(payment);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid payment data" });
+    }
+  });
+
+  // Company Settings
+  app.get("/api/company-settings", async (req, res) => {
+    const settings = await storage.getCompanySettings();
+    res.json(settings || null);
+  });
+
+  app.post("/api/company-settings", async (req, res) => {
+    try {
+      const data = insertCompanySettingsSchema.parse(req.body);
+      const settings = await storage.upsertCompanySettings(data);
+      res.status(201).json(settings);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid company settings" });
+    }
+  });
+
+  // Reports
+  app.get("/api/reports/profit-loss", async (req, res) => {
+    try {
+      const products = await storage.getProducts();
+      const invoices = await storage.getInvoices();
+      const purchases = await storage.getPurchases();
+
+      let totalPurchases = 0;
+      let totalSales = 0;
+
+      for (const purchase of purchases) {
+        totalPurchases += purchase.totalAmount;
+      }
+
+      for (const invoice of invoices) {
+        totalSales += invoice.grandTotal;
+      }
+
+      const productProfits = products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        purchasePrice: p.purchasePrice,
+        salePrice: p.salePrice,
+        margin: p.salePrice - p.purchasePrice,
+        marginPercent: ((p.salePrice - p.purchasePrice) / p.purchasePrice) * 100,
+      }));
+
+      res.json({
+        totalPurchases,
+        totalSales,
+        grossProfit: totalSales - totalPurchases,
+        productProfits,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to generate report" });
+    }
+  });
+
+  app.get("/api/reports/vendor-balances", async (req, res) => {
+    try {
+      const vendors = await storage.getVendors();
+      const balances = await Promise.all(
+        vendors.map(async (vendor) => {
+          const balance = await storage.getVendorBalance(vendor.id);
+          return {
+            ...vendor,
+            ...balance,
+          };
+        })
+      );
+      res.json(balances);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to generate report" });
+    }
+  });
+
+  app.get("/api/reports/customer-balances", async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      const balances = await Promise.all(
+        customers.map(async (customer) => {
+          const balance = await storage.getCustomerBalance(customer.id);
+          return {
+            ...customer,
+            ...balance,
+          };
+        })
+      );
+      res.json(balances);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to generate report" });
     }
   });
 

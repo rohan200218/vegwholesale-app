@@ -133,6 +133,51 @@ export const insertStockMovementSchema = createInsertSchema(stockMovements).omit
 export type InsertStockMovement = z.infer<typeof insertStockMovementSchema>;
 export type StockMovement = typeof stockMovements.$inferSelect;
 
+// Vendor Payments - track payments to vendors
+export const vendorPayments = pgTable("vendor_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorId: varchar("vendor_id").notNull(),
+  purchaseId: varchar("purchase_id"),
+  amount: real("amount").notNull(),
+  date: text("date").notNull(),
+  paymentMethod: text("payment_method").notNull(),
+  notes: text("notes"),
+});
+
+export const insertVendorPaymentSchema = createInsertSchema(vendorPayments).omit({ id: true });
+export type InsertVendorPayment = z.infer<typeof insertVendorPaymentSchema>;
+export type VendorPayment = typeof vendorPayments.$inferSelect;
+
+// Customer Payments - track payments from customers
+export const customerPayments = pgTable("customer_payments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull(),
+  invoiceId: varchar("invoice_id"),
+  amount: real("amount").notNull(),
+  date: text("date").notNull(),
+  paymentMethod: text("payment_method").notNull(),
+  notes: text("notes"),
+});
+
+export const insertCustomerPaymentSchema = createInsertSchema(customerPayments).omit({ id: true });
+export type InsertCustomerPayment = z.infer<typeof insertCustomerPaymentSchema>;
+export type CustomerPayment = typeof customerPayments.$inferSelect;
+
+// Company Settings - for invoice branding
+export const companySettings = pgTable("company_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  address: text("address"),
+  phone: text("phone"),
+  email: text("email"),
+  gstNumber: text("gst_number"),
+  bankDetails: text("bank_details"),
+});
+
+export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({ id: true });
+export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+export type CompanySettings = typeof companySettings.$inferSelect;
+
 // Legacy user schema for compatibility
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

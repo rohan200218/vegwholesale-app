@@ -19,37 +19,52 @@ import {
   type InsertInvoiceItem,
   type StockMovement,
   type InsertStockMovement,
+  type VendorPayment,
+  type InsertVendorPayment,
+  type CustomerPayment,
+  type InsertCustomerPayment,
+  type CompanySettings,
+  type InsertCompanySettings,
+  vendors,
+  customers,
+  vehicles,
+  products,
+  purchases,
+  purchaseItems,
+  invoices,
+  invoiceItems,
+  stockMovements,
+  vendorPayments,
+  customerPayments,
+  companySettings,
+  users,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 
 export interface IStorage {
-  // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
-  // Vendors
   getVendors(): Promise<Vendor[]>;
   getVendor(id: string): Promise<Vendor | undefined>;
   createVendor(vendor: InsertVendor): Promise<Vendor>;
   updateVendor(id: string, vendor: Partial<InsertVendor>): Promise<Vendor | undefined>;
   deleteVendor(id: string): Promise<boolean>;
 
-  // Customers
   getCustomers(): Promise<Customer[]>;
   getCustomer(id: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
   deleteCustomer(id: string): Promise<boolean>;
 
-  // Vehicles
   getVehicles(): Promise<Vehicle[]>;
   getVehicle(id: string): Promise<Vehicle | undefined>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   updateVehicle(id: string, vehicle: Partial<InsertVehicle>): Promise<Vehicle | undefined>;
   deleteVehicle(id: string): Promise<boolean>;
 
-  // Products
   getProducts(): Promise<Product[]>;
   getProduct(id: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
@@ -57,317 +72,334 @@ export interface IStorage {
   deleteProduct(id: string): Promise<boolean>;
   updateProductStock(id: string, quantity: number, type: 'in' | 'out'): Promise<Product | undefined>;
 
-  // Purchases
   getPurchases(): Promise<Purchase[]>;
   getPurchase(id: string): Promise<Purchase | undefined>;
   createPurchase(purchase: InsertPurchase, items: InsertPurchaseItem[]): Promise<Purchase>;
   getPurchaseItems(purchaseId: string): Promise<PurchaseItem[]>;
 
-  // Invoices
   getInvoices(): Promise<Invoice[]>;
   getInvoice(id: string): Promise<Invoice | undefined>;
   createInvoice(invoice: InsertInvoice, items: InsertInvoiceItem[]): Promise<Invoice>;
   getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]>;
 
-  // Stock Movements
-  getStockMovements(): Promise<StockMovement[]>;
+  getStockMovements(startDate?: string, endDate?: string): Promise<StockMovement[]>;
   createStockMovement(movement: InsertStockMovement): Promise<StockMovement>;
+
+  getVendorPayments(vendorId?: string): Promise<VendorPayment[]>;
+  createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment>;
+  getVendorBalance(vendorId: string): Promise<{ totalPurchases: number; totalPayments: number; balance: number }>;
+
+  getCustomerPayments(customerId?: string): Promise<CustomerPayment[]>;
+  createCustomerPayment(payment: InsertCustomerPayment): Promise<CustomerPayment>;
+  getCustomerBalance(customerId: string): Promise<{ totalInvoices: number; totalPayments: number; balance: number }>;
+
+  getCompanySettings(): Promise<CompanySettings | undefined>;
+  upsertCompanySettings(settings: InsertCompanySettings): Promise<CompanySettings>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private vendors: Map<string, Vendor>;
-  private customers: Map<string, Customer>;
-  private vehicles: Map<string, Vehicle>;
-  private products: Map<string, Product>;
-  private purchases: Map<string, Purchase>;
-  private purchaseItems: Map<string, PurchaseItem>;
-  private invoices: Map<string, Invoice>;
-  private invoiceItems: Map<string, InvoiceItem>;
-  private stockMovements: Map<string, StockMovement>;
-
-  constructor() {
-    this.users = new Map();
-    this.vendors = new Map();
-    this.customers = new Map();
-    this.vehicles = new Map();
-    this.products = new Map();
-    this.purchases = new Map();
-    this.purchaseItems = new Map();
-    this.invoices = new Map();
-    this.invoiceItems = new Map();
-    this.stockMovements = new Map();
-  }
-
-  // Users
+export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
-  // Vendors
   async getVendors(): Promise<Vendor[]> {
-    return Array.from(this.vendors.values());
+    return await db.select().from(vendors);
   }
 
   async getVendor(id: string): Promise<Vendor | undefined> {
-    return this.vendors.get(id);
+    const [vendor] = await db.select().from(vendors).where(eq(vendors.id, id));
+    return vendor || undefined;
   }
 
   async createVendor(insertVendor: InsertVendor): Promise<Vendor> {
-    const id = randomUUID();
-    const vendor: Vendor = { ...insertVendor, id };
-    this.vendors.set(id, vendor);
+    const [vendor] = await db.insert(vendors).values(insertVendor).returning();
     return vendor;
   }
 
   async updateVendor(id: string, updates: Partial<InsertVendor>): Promise<Vendor | undefined> {
-    const vendor = this.vendors.get(id);
-    if (!vendor) return undefined;
-    const updated = { ...vendor, ...updates };
-    this.vendors.set(id, updated);
-    return updated;
+    const [vendor] = await db.update(vendors).set(updates).where(eq(vendors.id, id)).returning();
+    return vendor || undefined;
   }
 
   async deleteVendor(id: string): Promise<boolean> {
-    return this.vendors.delete(id);
+    const result = await db.delete(vendors).where(eq(vendors.id, id)).returning();
+    return result.length > 0;
   }
 
-  // Customers
   async getCustomers(): Promise<Customer[]> {
-    return Array.from(this.customers.values());
+    return await db.select().from(customers);
   }
 
   async getCustomer(id: string): Promise<Customer | undefined> {
-    return this.customers.get(id);
+    const [customer] = await db.select().from(customers).where(eq(customers.id, id));
+    return customer || undefined;
   }
 
   async createCustomer(insertCustomer: InsertCustomer): Promise<Customer> {
-    const id = randomUUID();
-    const customer: Customer = { ...insertCustomer, id };
-    this.customers.set(id, customer);
+    const [customer] = await db.insert(customers).values(insertCustomer).returning();
     return customer;
   }
 
   async updateCustomer(id: string, updates: Partial<InsertCustomer>): Promise<Customer | undefined> {
-    const customer = this.customers.get(id);
-    if (!customer) return undefined;
-    const updated = { ...customer, ...updates };
-    this.customers.set(id, updated);
-    return updated;
+    const [customer] = await db.update(customers).set(updates).where(eq(customers.id, id)).returning();
+    return customer || undefined;
   }
 
   async deleteCustomer(id: string): Promise<boolean> {
-    return this.customers.delete(id);
+    const result = await db.delete(customers).where(eq(customers.id, id)).returning();
+    return result.length > 0;
   }
 
-  // Vehicles
   async getVehicles(): Promise<Vehicle[]> {
-    return Array.from(this.vehicles.values());
+    return await db.select().from(vehicles);
   }
 
   async getVehicle(id: string): Promise<Vehicle | undefined> {
-    return this.vehicles.get(id);
+    const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, id));
+    return vehicle || undefined;
   }
 
   async createVehicle(insertVehicle: InsertVehicle): Promise<Vehicle> {
-    const id = randomUUID();
-    const vehicle: Vehicle = { ...insertVehicle, id };
-    this.vehicles.set(id, vehicle);
+    const [vehicle] = await db.insert(vehicles).values(insertVehicle).returning();
     return vehicle;
   }
 
   async updateVehicle(id: string, updates: Partial<InsertVehicle>): Promise<Vehicle | undefined> {
-    const vehicle = this.vehicles.get(id);
-    if (!vehicle) return undefined;
-    const updated = { ...vehicle, ...updates };
-    this.vehicles.set(id, updated);
-    return updated;
+    const [vehicle] = await db.update(vehicles).set(updates).where(eq(vehicles.id, id)).returning();
+    return vehicle || undefined;
   }
 
   async deleteVehicle(id: string): Promise<boolean> {
-    return this.vehicles.delete(id);
+    const result = await db.delete(vehicles).where(eq(vehicles.id, id)).returning();
+    return result.length > 0;
   }
 
-  // Products
   async getProducts(): Promise<Product[]> {
-    return Array.from(this.products.values());
+    return await db.select().from(products);
   }
 
   async getProduct(id: string): Promise<Product | undefined> {
-    return this.products.get(id);
+    const [product] = await db.select().from(products).where(eq(products.id, id));
+    return product || undefined;
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
-    const id = randomUUID();
-    const product: Product = { 
-      ...insertProduct, 
-      id,
+    const [product] = await db.insert(products).values({
+      ...insertProduct,
       currentStock: insertProduct.currentStock ?? 0,
       reorderLevel: insertProduct.reorderLevel ?? 10,
-    };
-    this.products.set(id, product);
+    }).returning();
     return product;
   }
 
   async updateProduct(id: string, updates: Partial<InsertProduct>): Promise<Product | undefined> {
-    const product = this.products.get(id);
-    if (!product) return undefined;
-    const updated = { ...product, ...updates };
-    this.products.set(id, updated);
-    return updated;
+    const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
+    return product || undefined;
   }
 
   async deleteProduct(id: string): Promise<boolean> {
-    return this.products.delete(id);
+    const result = await db.delete(products).where(eq(products.id, id)).returning();
+    return result.length > 0;
   }
 
   async updateProductStock(id: string, quantity: number, type: 'in' | 'out'): Promise<Product | undefined> {
-    const product = this.products.get(id);
+    const product = await this.getProduct(id);
     if (!product) return undefined;
-    
-    const newStock = type === 'in' 
-      ? product.currentStock + quantity 
+
+    const newStock = type === 'in'
+      ? product.currentStock + quantity
       : product.currentStock - quantity;
-    
-    const updated = { ...product, currentStock: Math.max(0, newStock) };
-    this.products.set(id, updated);
-    return updated;
+
+    const [updated] = await db.update(products)
+      .set({ currentStock: Math.max(0, newStock) })
+      .where(eq(products.id, id))
+      .returning();
+    return updated || undefined;
   }
 
-  // Purchases
   async getPurchases(): Promise<Purchase[]> {
-    return Array.from(this.purchases.values());
+    return await db.select().from(purchases);
   }
 
   async getPurchase(id: string): Promise<Purchase | undefined> {
-    return this.purchases.get(id);
+    const [purchase] = await db.select().from(purchases).where(eq(purchases.id, id));
+    return purchase || undefined;
   }
 
   async createPurchase(insertPurchase: InsertPurchase, items: InsertPurchaseItem[]): Promise<Purchase> {
-    const id = randomUUID();
-    const purchase: Purchase = { 
-      ...insertPurchase, 
-      id,
+    const [purchase] = await db.insert(purchases).values({
+      ...insertPurchase,
       status: insertPurchase.status ?? "completed",
-    };
-    this.purchases.set(id, purchase);
+    }).returning();
 
-    // Create purchase items and update stock
     for (const item of items) {
-      const itemId = randomUUID();
-      const purchaseItem: PurchaseItem = { ...item, id: itemId, purchaseId: id };
-      this.purchaseItems.set(itemId, purchaseItem);
+      await db.insert(purchaseItems).values({
+        ...item,
+        purchaseId: purchase.id,
+      });
 
-      // Update product stock
       await this.updateProductStock(item.productId, item.quantity, 'in');
 
-      // Create stock movement
-      const movementId = randomUUID();
-      const movement: StockMovement = {
-        id: movementId,
+      await db.insert(stockMovements).values({
         productId: item.productId,
         type: 'in',
         quantity: item.quantity,
-        reason: `Purchase order ${id.slice(0, 8)}`,
+        reason: `Purchase order ${purchase.id.slice(0, 8)}`,
         date: insertPurchase.date,
-        referenceId: id,
-      };
-      this.stockMovements.set(movementId, movement);
+        referenceId: purchase.id,
+      });
     }
 
     return purchase;
   }
 
   async getPurchaseItems(purchaseId: string): Promise<PurchaseItem[]> {
-    return Array.from(this.purchaseItems.values()).filter(
-      (item) => item.purchaseId === purchaseId
-    );
+    return await db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId));
   }
 
-  // Invoices
   async getInvoices(): Promise<Invoice[]> {
-    return Array.from(this.invoices.values());
+    return await db.select().from(invoices);
   }
 
   async getInvoice(id: string): Promise<Invoice | undefined> {
-    return this.invoices.get(id);
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id));
+    return invoice || undefined;
   }
 
   async createInvoice(insertInvoice: InsertInvoice, items: InsertInvoiceItem[]): Promise<Invoice> {
-    const id = randomUUID();
-    const invoice: Invoice = { 
-      ...insertInvoice, 
-      id,
+    const [invoice] = await db.insert(invoices).values({
+      ...insertInvoice,
       status: insertInvoice.status ?? "pending",
       halalChargePercent: insertInvoice.halalChargePercent ?? 2,
       halalChargeAmount: insertInvoice.halalChargeAmount ?? 0,
-    };
-    this.invoices.set(id, invoice);
+    }).returning();
 
-    // Create invoice items and update stock
     for (const item of items) {
-      const itemId = randomUUID();
-      const invoiceItem: InvoiceItem = { ...item, id: itemId, invoiceId: id };
-      this.invoiceItems.set(itemId, invoiceItem);
+      await db.insert(invoiceItems).values({
+        ...item,
+        invoiceId: invoice.id,
+      });
 
-      // Update product stock
       await this.updateProductStock(item.productId, item.quantity, 'out');
 
-      // Create stock movement
-      const movementId = randomUUID();
-      const movement: StockMovement = {
-        id: movementId,
+      await db.insert(stockMovements).values({
         productId: item.productId,
         type: 'out',
         quantity: item.quantity,
         reason: `Invoice ${insertInvoice.invoiceNumber}`,
         date: insertInvoice.date,
-        referenceId: id,
-      };
-      this.stockMovements.set(movementId, movement);
+        referenceId: invoice.id,
+      });
     }
 
     return invoice;
   }
 
   async getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]> {
-    return Array.from(this.invoiceItems.values()).filter(
-      (item) => item.invoiceId === invoiceId
-    );
+    return await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
   }
 
-  // Stock Movements
-  async getStockMovements(): Promise<StockMovement[]> {
-    return Array.from(this.stockMovements.values());
+  async getStockMovements(startDate?: string, endDate?: string): Promise<StockMovement[]> {
+    if (startDate && endDate) {
+      return await db.select().from(stockMovements)
+        .where(and(gte(stockMovements.date, startDate), lte(stockMovements.date, endDate)));
+    }
+    return await db.select().from(stockMovements);
   }
 
   async createStockMovement(insertMovement: InsertStockMovement): Promise<StockMovement> {
-    const id = randomUUID();
-    const movement: StockMovement = { ...insertMovement, id };
-    this.stockMovements.set(id, movement);
-
-    // Update product stock
-    await this.updateProductStock(
-      insertMovement.productId, 
-      insertMovement.quantity, 
-      insertMovement.type as 'in' | 'out'
-    );
-
+    const [movement] = await db.insert(stockMovements).values(insertMovement).returning();
+    await this.updateProductStock(insertMovement.productId, insertMovement.quantity, insertMovement.type as 'in' | 'out');
     return movement;
+  }
+
+  async getVendorPayments(vendorId?: string): Promise<VendorPayment[]> {
+    if (vendorId) {
+      return await db.select().from(vendorPayments).where(eq(vendorPayments.vendorId, vendorId));
+    }
+    return await db.select().from(vendorPayments);
+  }
+
+  async createVendorPayment(insertPayment: InsertVendorPayment): Promise<VendorPayment> {
+    const [payment] = await db.insert(vendorPayments).values(insertPayment).returning();
+    return payment;
+  }
+
+  async getVendorBalance(vendorId: string): Promise<{ totalPurchases: number; totalPayments: number; balance: number }> {
+    const purchaseResult = await db.select({ total: sql<number>`COALESCE(SUM(${purchases.totalAmount}), 0)` })
+      .from(purchases)
+      .where(eq(purchases.vendorId, vendorId));
+    
+    const paymentResult = await db.select({ total: sql<number>`COALESCE(SUM(${vendorPayments.amount}), 0)` })
+      .from(vendorPayments)
+      .where(eq(vendorPayments.vendorId, vendorId));
+
+    const totalPurchases = Number(purchaseResult[0]?.total || 0);
+    const totalPayments = Number(paymentResult[0]?.total || 0);
+
+    return {
+      totalPurchases,
+      totalPayments,
+      balance: totalPurchases - totalPayments,
+    };
+  }
+
+  async getCustomerPayments(customerId?: string): Promise<CustomerPayment[]> {
+    if (customerId) {
+      return await db.select().from(customerPayments).where(eq(customerPayments.customerId, customerId));
+    }
+    return await db.select().from(customerPayments);
+  }
+
+  async createCustomerPayment(insertPayment: InsertCustomerPayment): Promise<CustomerPayment> {
+    const [payment] = await db.insert(customerPayments).values(insertPayment).returning();
+    return payment;
+  }
+
+  async getCustomerBalance(customerId: string): Promise<{ totalInvoices: number; totalPayments: number; balance: number }> {
+    const invoiceResult = await db.select({ total: sql<number>`COALESCE(SUM(${invoices.grandTotal}), 0)` })
+      .from(invoices)
+      .where(eq(invoices.customerId, customerId));
+    
+    const paymentResult = await db.select({ total: sql<number>`COALESCE(SUM(${customerPayments.amount}), 0)` })
+      .from(customerPayments)
+      .where(eq(customerPayments.customerId, customerId));
+
+    const totalInvoices = Number(invoiceResult[0]?.total || 0);
+    const totalPayments = Number(paymentResult[0]?.total || 0);
+
+    return {
+      totalInvoices,
+      totalPayments,
+      balance: totalInvoices - totalPayments,
+    };
+  }
+
+  async getCompanySettings(): Promise<CompanySettings | undefined> {
+    const [settings] = await db.select().from(companySettings).limit(1);
+    return settings || undefined;
+  }
+
+  async upsertCompanySettings(insertSettings: InsertCompanySettings): Promise<CompanySettings> {
+    const existing = await this.getCompanySettings();
+    if (existing) {
+      const [updated] = await db.update(companySettings).set(insertSettings).where(eq(companySettings.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(companySettings).values(insertSettings).returning();
+    return created;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

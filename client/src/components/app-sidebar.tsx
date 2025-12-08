@@ -21,6 +21,10 @@ import {
   Receipt,
   ShoppingCart,
   Leaf,
+  CreditCard,
+  BarChart3,
+  FileText,
+  Settings,
 } from "lucide-react";
 
 const navigationItems = [
@@ -66,6 +70,29 @@ const transactionItems = [
     title: "Billing",
     url: "/billing",
     icon: Receipt,
+  },
+  {
+    title: "Payments",
+    url: "/payments",
+    icon: CreditCard,
+  },
+];
+
+const reportItems = [
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: BarChart3,
+  },
+  {
+    title: "Print Center",
+    url: "/print",
+    icon: FileText,
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
   },
 ];
 
@@ -114,6 +141,27 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {transactionItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-nav-${item.title.toLowerCase()}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Reports & Settings</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {reportItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
