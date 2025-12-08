@@ -226,7 +226,7 @@ export default function PrintCenter() {
                     </div>
                     {selectedInvoiceData.includeHamaliCharge && (
                       <div className="flex justify-between text-sm">
-                        <span>Hamali Charge ({selectedInvoiceData.hamaliChargePercent}%)</span>
+                        <span>Hamali Charge ({selectedInvoiceData.totalKgWeight || 0} KG x {selectedInvoiceData.hamaliRatePerKg || 0}/KG)</span>
                         <span className="font-mono">
                           {(selectedInvoiceData.hamaliChargeAmount || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                         </span>

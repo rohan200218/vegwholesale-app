@@ -46,8 +46,10 @@ type InvoiceDetail = {
   customerId: string;
   subtotal: number;
   includeHamaliCharge: boolean;
-  hamaliChargePercent: number;
+  hamaliRatePerKg: number;
   hamaliChargeAmount: number;
+  hamaliPaidByCash: boolean;
+  totalKgWeight: number;
   grandTotal: number;
 };
 
@@ -328,15 +330,17 @@ export default function Reports() {
   };
 
   const downloadInvoiceReport = () => {
-    const headers = ["Invoice #", "Date", "Customer", "Subtotal", "Hamali Included", "Hamali %", "Hamali Amount", "Grand Total"];
+    const headers = ["Invoice #", "Date", "Customer", "Subtotal", "Hamali Included", "Rate/KG", "Total KG", "Hamali Amount", "Paid Cash", "Grand Total"];
     const rows = filteredInvoices.map((inv) => [
       inv.invoiceNumber,
       inv.date,
       getCustomerName(inv.customerId),
       inv.subtotal.toFixed(2),
       inv.includeHamaliCharge ? "Yes" : "No",
-      inv.includeHamaliCharge ? `${inv.hamaliChargePercent}%` : "-",
+      inv.includeHamaliCharge ? `${inv.hamaliRatePerKg}` : "-",
+      inv.includeHamaliCharge ? `${inv.totalKgWeight}` : "-",
       inv.includeHamaliCharge ? (inv.hamaliChargeAmount || 0).toFixed(2) : "0",
+      inv.hamaliPaidByCash ? "Yes" : "No",
       inv.grandTotal.toFixed(2),
     ]);
     downloadCSV([headers, ...rows], `invoice-report-${startDate}-to-${endDate}.csv`);
@@ -660,7 +664,7 @@ export default function Reports() {
                     <TableHead>Customer</TableHead>
                     <TableHead className="text-right">Subtotal</TableHead>
                     <TableHead className="text-center">Hamali Status</TableHead>
-                    <TableHead className="text-right">Hamali %</TableHead>
+                    <TableHead className="text-right">Rate/KG</TableHead>
                     <TableHead className="text-right">Hamali Amount</TableHead>
                     <TableHead className="text-right">Grand Total</TableHead>
                   </TableRow>
@@ -695,7 +699,7 @@ export default function Reports() {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {invoice.includeHamaliCharge ? `${invoice.hamaliChargePercent}%` : "-"}
+                          {invoice.includeHamaliCharge ? `${invoice.hamaliRatePerKg}/KG` : "-"}
                         </TableCell>
                         <TableCell className="text-right font-mono text-primary font-semibold">
                           {invoice.includeHamaliCharge 
