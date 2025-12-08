@@ -381,6 +381,46 @@ export async function registerRoutes(
     }
   });
 
+  // Vehicle Inventory
+  app.get("/api/vehicles/:id/inventory", async (req, res) => {
+    try {
+      const inventory = await storage.getVehicleInventory(req.params.id);
+      res.json(inventory);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get vehicle inventory" });
+    }
+  });
+
+  app.get("/api/vehicles/:id/inventory/movements", async (req, res) => {
+    try {
+      const movements = await storage.getVehicleInventoryMovements(req.params.id);
+      res.json(movements);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get inventory movements" });
+    }
+  });
+
+  const loadInventorySchema = z.object({
+    productId: z.string(),
+    quantity: z.number().positive(),
+    purchaseId: z.string().optional(),
+  });
+
+  app.post("/api/vehicles/:id/inventory/load", async (req, res) => {
+    try {
+      const data = loadInventorySchema.parse(req.body);
+      const inventory = await storage.loadVehicleInventory(
+        req.params.id,
+        data.productId,
+        data.quantity,
+        data.purchaseId
+      );
+      res.status(201).json(inventory);
+    } catch (error) {
+      res.status(400).json({ error: "Invalid inventory data" });
+    }
+  });
+
   // Reports
   app.get("/api/reports/profit-loss", async (req, res) => {
     try {

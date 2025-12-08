@@ -163,6 +163,35 @@ export const insertCustomerPaymentSchema = createInsertSchema(customerPayments).
 export type InsertCustomerPayment = z.infer<typeof insertCustomerPaymentSchema>;
 export type CustomerPayment = typeof customerPayments.$inferSelect;
 
+// Vehicle Inventory - track products in each vehicle
+export const vehicleInventory = pgTable("vehicle_inventory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vehicleId: varchar("vehicle_id").notNull(),
+  productId: varchar("product_id").notNull(),
+  quantity: real("quantity").notNull().default(0),
+});
+
+export const insertVehicleInventorySchema = createInsertSchema(vehicleInventory).omit({ id: true });
+export type InsertVehicleInventory = z.infer<typeof insertVehicleInventorySchema>;
+export type VehicleInventory = typeof vehicleInventory.$inferSelect;
+
+// Vehicle Inventory Movements - track loading and selling from vehicles
+export const vehicleInventoryMovements = pgTable("vehicle_inventory_movements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vehicleId: varchar("vehicle_id").notNull(),
+  productId: varchar("product_id").notNull(),
+  type: text("type").notNull(), // 'load' or 'sale' or 'adjustment'
+  quantity: real("quantity").notNull(),
+  referenceId: varchar("reference_id"), // purchase_id or invoice_id
+  referenceType: text("reference_type"), // 'purchase' or 'invoice'
+  date: text("date").notNull(),
+  notes: text("notes"),
+});
+
+export const insertVehicleInventoryMovementSchema = createInsertSchema(vehicleInventoryMovements).omit({ id: true });
+export type InsertVehicleInventoryMovement = z.infer<typeof insertVehicleInventoryMovementSchema>;
+export type VehicleInventoryMovement = typeof vehicleInventoryMovements.$inferSelect;
+
 // Company Settings - for invoice branding
 export const companySettings = pgTable("company_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

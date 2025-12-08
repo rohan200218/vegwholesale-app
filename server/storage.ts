@@ -25,6 +25,10 @@ import {
   type InsertCustomerPayment,
   type CompanySettings,
   type InsertCompanySettings,
+  type VehicleInventory,
+  type InsertVehicleInventory,
+  type VehicleInventoryMovement,
+  type InsertVehicleInventoryMovement,
   vendors,
   customers,
   vehicles,
@@ -37,6 +41,8 @@ import {
   vendorPayments,
   customerPayments,
   companySettings,
+  vehicleInventory,
+  vehicleInventoryMovements,
   users,
 } from "@shared/schema";
 import { db } from "./db";
@@ -95,6 +101,12 @@ export interface IStorage {
 
   getCompanySettings(): Promise<CompanySettings | undefined>;
   upsertCompanySettings(settings: InsertCompanySettings): Promise<CompanySettings>;
+
+  // Vehicle Inventory
+  getVehicleInventory(vehicleId: string): Promise<VehicleInventory[]>;
+  loadVehicleInventory(vehicleId: string, productId: string, quantity: number, purchaseId?: string): Promise<VehicleInventory>;
+  deductVehicleInventory(vehicleId: string, productId: string, quantity: number, invoiceId?: string): Promise<VehicleInventory | undefined>;
+  getVehicleInventoryMovements(vehicleId: string): Promise<VehicleInventoryMovement[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -399,6 +411,80 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(companySettings).values(insertSettings).returning();
     return created;
+  }
+
+  // Vehicle Inventory Methods
+  async getVehicleInventory(vehicleId: string): Promise<VehicleInventory[]> {
+    return await db.select().from(vehicleInventory).where(eq(vehicleInventory.vehicleId, vehicleId));
+  }
+
+  async loadVehicleInventory(vehicleId: string, productId: string, quantity: number, purchaseId?: string): Promise<VehicleInventory> {
+    // Check if inventory record exists
+    const [existing] = await db.select().from(vehicleInventory)
+      .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)));
+
+    let inventoryRecord: VehicleInventory;
+    
+    if (existing) {
+      // Update existing inventory
+      const [updated] = await db.update(vehicleInventory)
+        .set({ quantity: existing.quantity + quantity })
+        .where(eq(vehicleInventory.id, existing.id))
+        .returning();
+      inventoryRecord = updated;
+    } else {
+      // Create new inventory record
+      const [created] = await db.insert(vehicleInventory)
+        .values({ vehicleId, productId, quantity })
+        .returning();
+      inventoryRecord = created;
+    }
+
+    // Log the movement
+    const today = new Date().toISOString().split("T")[0];
+    await db.insert(vehicleInventoryMovements).values({
+      vehicleId,
+      productId,
+      type: 'load',
+      quantity,
+      referenceId: purchaseId,
+      referenceType: purchaseId ? 'purchase' : undefined,
+      date: today,
+    });
+
+    return inventoryRecord;
+  }
+
+  async deductVehicleInventory(vehicleId: string, productId: string, quantity: number, invoiceId?: string): Promise<VehicleInventory | undefined> {
+    const [existing] = await db.select().from(vehicleInventory)
+      .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)));
+
+    if (!existing || existing.quantity < quantity) {
+      return undefined; // Not enough stock
+    }
+
+    const [updated] = await db.update(vehicleInventory)
+      .set({ quantity: existing.quantity - quantity })
+      .where(eq(vehicleInventory.id, existing.id))
+      .returning();
+
+    // Log the movement
+    const today = new Date().toISOString().split("T")[0];
+    await db.insert(vehicleInventoryMovements).values({
+      vehicleId,
+      productId,
+      type: 'sale',
+      quantity,
+      referenceId: invoiceId,
+      referenceType: invoiceId ? 'invoice' : undefined,
+      date: today,
+    });
+
+    return updated;
+  }
+
+  async getVehicleInventoryMovements(vehicleId: string): Promise<VehicleInventoryMovement[]> {
+    return await db.select().from(vehicleInventoryMovements).where(eq(vehicleInventoryMovements.vehicleId, vehicleId));
   }
 }
 
