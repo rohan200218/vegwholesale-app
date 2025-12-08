@@ -14,7 +14,6 @@ import Vehicles from "@/pages/vehicles";
 import Products from "@/pages/products";
 import Stock from "@/pages/stock";
 import Purchases from "@/pages/purchases";
-import Billing from "@/pages/billing";
 import Payments from "@/pages/payments";
 import Reports from "@/pages/reports";
 import PrintCenter from "@/pages/print";
@@ -33,7 +32,6 @@ function Router() {
       <Route path="/stock" component={Stock} />
       <Route path="/purchases" component={Purchases} />
       <Route path="/vendor-returns" component={VendorReturns} />
-      <Route path="/billing" component={Billing} />
       <Route path="/weighing" component={Weighing} />
       <Route path="/payments" component={Payments} />
       <Route path="/reports" component={Reports} />

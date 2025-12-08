@@ -18,7 +18,6 @@ import {
   Truck,
   Package,
   Warehouse,
-  Receipt,
   ShoppingCart,
   Leaf,
   CreditCard,
@@ -77,11 +76,6 @@ const transactionItems = [
     title: "Weighing",
     url: "/weighing",
     icon: Scale,
-  },
-  {
-    title: "Billing",
-    url: "/billing",
-    icon: Receipt,
   },
   {
     title: "Payments",
