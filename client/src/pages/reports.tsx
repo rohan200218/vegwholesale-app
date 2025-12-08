@@ -43,7 +43,7 @@ export default function Reports() {
   });
 
   const { data: stockMovements = [], isLoading: movementsLoading } = useQuery<StockMovement[]>({
-    queryKey: ["/api/stock-movements", { startDate, endDate }],
+    queryKey: ["/api/stock-movements"],
   });
 
   const { data: profitLoss, isLoading: profitLoading } = useQuery<ProfitLossReport>({
