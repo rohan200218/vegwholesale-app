@@ -105,9 +105,9 @@ export const invoices = pgTable("invoices", {
   vehicleId: varchar("vehicle_id"),
   date: text("date").notNull(),
   subtotal: real("subtotal").notNull(),
-  includeHamaliCharge: boolean("include_hamali_charge").notNull().default(false),
-  hamaliChargePercent: real("hamali_charge_percent").default(2),
-  hamaliChargeAmount: real("hamali_charge_amount").default(0),
+  includeHamaliCharge: boolean("include_halal_charge").notNull().default(false),
+  hamaliChargePercent: real("halal_charge_percent").default(2),
+  hamaliChargeAmount: real("halal_charge_amount").default(0),
   grandTotal: real("grand_total").notNull(),
   status: text("status").notNull().default("pending"),
 });
@@ -251,7 +251,7 @@ export type InsertVendorReturnItem = z.infer<typeof insertVendorReturnItemSchema
 export type VendorReturnItem = typeof vendorReturnItems.$inferSelect;
 
 // Hamali Cash Payments - direct cash given to Hamali (not through invoices)
-export const hamaliCashPayments = pgTable("hamali_cash_payments", {
+export const hamaliCashPayments = pgTable("halal_cash_payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   amount: real("amount").notNull(),
   date: text("date").notNull(),
