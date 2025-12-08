@@ -208,6 +208,37 @@ export const insertCompanySettingsSchema = createInsertSchema(companySettings).o
 export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
 export type CompanySettings = typeof companySettings.$inferSelect;
 
+// Vendor Returns - returning defective products to vendors
+export const vendorReturns = pgTable("vendor_returns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  vendorId: varchar("vendor_id").notNull(),
+  purchaseId: varchar("purchase_id"),
+  vehicleId: varchar("vehicle_id"),
+  date: text("date").notNull(),
+  totalAmount: real("total_amount").notNull(),
+  status: text("status").notNull().default("completed"),
+  notes: text("notes"),
+});
+
+export const insertVendorReturnSchema = createInsertSchema(vendorReturns).omit({ id: true });
+export type InsertVendorReturn = z.infer<typeof insertVendorReturnSchema>;
+export type VendorReturn = typeof vendorReturns.$inferSelect;
+
+// Vendor Return Items - individual products being returned
+export const vendorReturnItems = pgTable("vendor_return_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  returnId: varchar("return_id").notNull(),
+  productId: varchar("product_id").notNull(),
+  quantity: real("quantity").notNull(),
+  unitPrice: real("unit_price").notNull(),
+  total: real("total").notNull(),
+  reason: text("reason").notNull(),
+});
+
+export const insertVendorReturnItemSchema = createInsertSchema(vendorReturnItems).omit({ id: true });
+export type InsertVendorReturnItem = z.infer<typeof insertVendorReturnItemSchema>;
+export type VendorReturnItem = typeof vendorReturnItems.$inferSelect;
+
 // Legacy user schema for compatibility
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

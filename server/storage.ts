@@ -29,6 +29,10 @@ import {
   type InsertVehicleInventory,
   type VehicleInventoryMovement,
   type InsertVehicleInventoryMovement,
+  type VendorReturn,
+  type InsertVendorReturn,
+  type VendorReturnItem,
+  type InsertVendorReturnItem,
   vendors,
   customers,
   vehicles,
@@ -43,6 +47,8 @@ import {
   companySettings,
   vehicleInventory,
   vehicleInventoryMovements,
+  vendorReturns,
+  vendorReturnItems,
   users,
 } from "@shared/schema";
 import { db } from "./db";
@@ -93,7 +99,7 @@ export interface IStorage {
 
   getVendorPayments(vendorId?: string): Promise<VendorPayment[]>;
   createVendorPayment(payment: InsertVendorPayment): Promise<VendorPayment>;
-  getVendorBalance(vendorId: string): Promise<{ totalPurchases: number; totalPayments: number; balance: number }>;
+  getVendorBalance(vendorId: string): Promise<{ totalPurchases: number; totalPayments: number; totalReturns: number; balance: number }>;
 
   getCustomerPayments(customerId?: string): Promise<CustomerPayment[]>;
   createCustomerPayment(payment: InsertCustomerPayment): Promise<CustomerPayment>;
@@ -107,6 +113,12 @@ export interface IStorage {
   loadVehicleInventory(vehicleId: string, productId: string, quantity: number, purchaseId?: string): Promise<VehicleInventory>;
   deductVehicleInventory(vehicleId: string, productId: string, quantity: number, invoiceId?: string): Promise<VehicleInventory | undefined>;
   getVehicleInventoryMovements(vehicleId: string): Promise<VehicleInventoryMovement[]>;
+
+  // Vendor Returns
+  getVendorReturns(vendorId?: string): Promise<VendorReturn[]>;
+  getVendorReturn(id: string): Promise<VendorReturn | undefined>;
+  createVendorReturn(vendorReturn: InsertVendorReturn, items: InsertVendorReturnItem[]): Promise<VendorReturn>;
+  getVendorReturnItems(returnId: string): Promise<VendorReturnItem[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -373,7 +385,7 @@ export class DatabaseStorage implements IStorage {
     return payment;
   }
 
-  async getVendorBalance(vendorId: string): Promise<{ totalPurchases: number; totalPayments: number; balance: number }> {
+  async getVendorBalance(vendorId: string): Promise<{ totalPurchases: number; totalPayments: number; totalReturns: number; balance: number }> {
     const purchaseResult = await db.select({ total: sql<number>`COALESCE(SUM(${purchases.totalAmount}), 0)` })
       .from(purchases)
       .where(eq(purchases.vendorId, vendorId));
@@ -382,13 +394,19 @@ export class DatabaseStorage implements IStorage {
       .from(vendorPayments)
       .where(eq(vendorPayments.vendorId, vendorId));
 
+    const returnResult = await db.select({ total: sql<number>`COALESCE(SUM(${vendorReturns.totalAmount}), 0)` })
+      .from(vendorReturns)
+      .where(eq(vendorReturns.vendorId, vendorId));
+
     const totalPurchases = Number(purchaseResult[0]?.total || 0);
     const totalPayments = Number(paymentResult[0]?.total || 0);
+    const totalReturns = Number(returnResult[0]?.total || 0);
 
     return {
       totalPurchases,
       totalPayments,
-      balance: totalPurchases - totalPayments,
+      totalReturns,
+      balance: totalPurchases - totalPayments - totalReturns,
     };
   }
 
@@ -531,6 +549,62 @@ export class DatabaseStorage implements IStorage {
 
   async getVehicleInventoryMovements(vehicleId: string): Promise<VehicleInventoryMovement[]> {
     return await db.select().from(vehicleInventoryMovements).where(eq(vehicleInventoryMovements.vehicleId, vehicleId));
+  }
+
+  // Vendor Returns Methods
+  async getVendorReturns(vendorId?: string): Promise<VendorReturn[]> {
+    if (vendorId) {
+      return await db.select().from(vendorReturns).where(eq(vendorReturns.vendorId, vendorId));
+    }
+    return await db.select().from(vendorReturns);
+  }
+
+  async getVendorReturn(id: string): Promise<VendorReturn | undefined> {
+    const [vendorReturn] = await db.select().from(vendorReturns).where(eq(vendorReturns.id, id));
+    return vendorReturn || undefined;
+  }
+
+  async createVendorReturn(insertVendorReturn: InsertVendorReturn, items: InsertVendorReturnItem[]): Promise<VendorReturn> {
+    const [vendorReturn] = await db.insert(vendorReturns).values({
+      ...insertVendorReturn,
+      status: insertVendorReturn.status ?? "completed",
+    }).returning();
+
+    for (const item of items) {
+      await db.insert(vendorReturnItems).values({
+        ...item,
+        returnId: vendorReturn.id,
+      });
+
+      // Deduct stock when returning to vendor (stock goes out)
+      await this.updateProductStock(item.productId, item.quantity, 'out');
+
+      // Record stock movement
+      await db.insert(stockMovements).values({
+        productId: item.productId,
+        type: 'out',
+        quantity: item.quantity,
+        reason: `Vendor return: ${item.reason}`,
+        date: insertVendorReturn.date,
+        referenceId: vendorReturn.id,
+      });
+
+      // If vehicle is specified, also deduct from vehicle inventory
+      if (insertVendorReturn.vehicleId) {
+        await this.deductVehicleInventory(
+          insertVendorReturn.vehicleId,
+          item.productId,
+          item.quantity,
+          vendorReturn.id
+        );
+      }
+    }
+
+    return vendorReturn;
+  }
+
+  async getVendorReturnItems(returnId: string): Promise<VendorReturnItem[]> {
+    return await db.select().from(vendorReturnItems).where(eq(vendorReturnItems.returnId, returnId));
   }
 }
 
