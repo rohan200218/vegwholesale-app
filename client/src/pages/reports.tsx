@@ -13,9 +13,40 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw, CircleCheck, CircleX, Receipt, CreditCard, Users } from "lucide-react";
 import type { Product, StockMovement } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
+
+type HalalSummary = {
+  totalHalalCollected: number;
+  invoicesWithHalal: number;
+  invoicesWithoutHalal: number;
+  salesWithHalal: number;
+  salesWithoutHalal: number;
+};
+
+type InvoiceDetail = {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  customerName: string;
+  customerId: string;
+  subtotal: number;
+  includeHalalCharge: boolean;
+  halalChargePercent: number;
+  halalChargeAmount: number;
+  grandTotal: number;
+};
+
+type CustomerPaymentSummary = {
+  customerId: string;
+  customerName: string;
+  totalInvoiced: number;
+  totalPaid: number;
+  balance: number;
+  halalAmount: number;
+  paymentStatus: "paid" | "partial" | "unpaid";
+};
 
 type ProfitLossReport = {
   totalPurchases: number;
@@ -31,6 +62,9 @@ type ProfitLossReport = {
     margin: number;
     marginPercent: number;
   }[];
+  halalSummary?: HalalSummary;
+  invoiceDetails?: InvoiceDetail[];
+  customerPaymentSummary?: CustomerPaymentSummary[];
 };
 
 export default function Reports() {
@@ -170,12 +204,235 @@ export default function Reports() {
         </Card>
       </div>
 
-      <Tabs defaultValue="profit" className="space-y-4">
-        <TabsList>
+      {/* Halal Charge Section */}
+      <Card className="border-2 border-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="h-5 w-5 text-primary" />
+            Halal Charge Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-md bg-primary/10 border border-primary/20">
+              <p className="text-sm text-muted-foreground">Total Halal Collected</p>
+              <p className="text-2xl font-bold font-mono text-primary" data-testid="text-halal-collected">
+                {(profitLoss?.halalSummary?.totalHalalCollected || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Amount from all invoices with Halal charge</p>
+            </div>
+            <div className="p-4 rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <CircleCheck className="h-4 w-4 text-primary" />
+                Halal Included
+              </p>
+              <p className="text-xl font-bold font-mono" data-testid="text-halal-included-count">
+                {profitLoss?.halalSummary?.invoicesWithHalal || 0} invoices
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Sales total:</p>
+              <p className="text-sm font-mono">
+                {(profitLoss?.halalSummary?.salesWithHalal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+              </p>
+            </div>
+            <div className="p-4 rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <CircleX className="h-4 w-4 text-muted-foreground" />
+                Halal Excluded
+              </p>
+              <p className="text-xl font-bold font-mono" data-testid="text-halal-excluded-count">
+                {profitLoss?.halalSummary?.invoicesWithoutHalal || 0} invoices
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Sales total:</p>
+              <p className="text-sm font-mono">
+                {(profitLoss?.halalSummary?.salesWithoutHalal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="halal" className="space-y-4">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="halal" data-testid="tab-halal">
+            <Receipt className="h-4 w-4 mr-1" />
+            Invoice Details
+          </TabsTrigger>
+          <TabsTrigger value="payments" data-testid="tab-payments">
+            <CreditCard className="h-4 w-4 mr-1" />
+            Payment Status
+          </TabsTrigger>
           <TabsTrigger value="profit" data-testid="tab-profit">Profit Margins</TabsTrigger>
           <TabsTrigger value="stock" data-testid="tab-stock">Stock Movements</TabsTrigger>
           <TabsTrigger value="lowstock" data-testid="tab-lowstock">Low Stock Alerts</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="halal" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Invoice Halal Charge Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice #</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                    <TableHead className="text-center">Halal Status</TableHead>
+                    <TableHead className="text-right">Halal %</TableHead>
+                    <TableHead className="text-right">Halal Amount</TableHead>
+                    <TableHead className="text-right">Grand Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!profitLoss?.invoiceDetails || profitLoss.invoiceDetails.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        No invoices found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    profitLoss.invoiceDetails.map((invoice) => (
+                      <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
+                        <TableCell className="font-medium font-mono">{invoice.invoiceNumber}</TableCell>
+                        <TableCell>{invoice.date}</TableCell>
+                        <TableCell>{invoice.customerName}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {invoice.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {invoice.includeHalalCharge ? (
+                            <Badge variant="default" className="gap-1">
+                              <CircleCheck className="h-3 w-3" />
+                              Included
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1">
+                              <CircleX className="h-3 w-3" />
+                              Excluded
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {invoice.includeHalalCharge ? `${invoice.halalChargePercent}%` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-primary font-semibold">
+                          {invoice.includeHalalCharge 
+                            ? invoice.halalChargeAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })
+                            : "-"
+                          }
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
+                          {invoice.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="payments" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Customer Payment Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Total Invoiced</TableHead>
+                    <TableHead className="text-right">Halal Amount</TableHead>
+                    <TableHead className="text-right">Total Paid</TableHead>
+                    <TableHead className="text-right">Balance Due</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!profitLoss?.customerPaymentSummary || profitLoss.customerPaymentSummary.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        No customer payment data
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    profitLoss.customerPaymentSummary.map((customer) => (
+                      <TableRow key={customer.customerId} data-testid={`row-payment-${customer.customerId}`}>
+                        <TableCell className="font-medium">{customer.customerName}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {customer.totalInvoiced.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-primary">
+                          {customer.halalAmount > 0 
+                            ? customer.halalAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })
+                            : "-"
+                          }
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-primary">
+                          {customer.totalPaid.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
+                          {customer.balance > 0 
+                            ? customer.balance.toLocaleString("en-IN", { style: "currency", currency: "INR" })
+                            : "-"
+                          }
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {customer.paymentStatus === "paid" && (
+                            <Badge variant="default" className="bg-primary">Paid</Badge>
+                          )}
+                          {customer.paymentStatus === "partial" && (
+                            <Badge variant="secondary" className="bg-amber-500 text-white">Partial</Badge>
+                          )}
+                          {customer.paymentStatus === "unpaid" && (
+                            <Badge variant="destructive">Unpaid</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              
+              {/* Summary Row */}
+              {profitLoss?.customerPaymentSummary && profitLoss.customerPaymentSummary.length > 0 && (
+                <div className="mt-4 pt-4 border-t flex flex-wrap gap-6 justify-end">
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Total Invoiced</p>
+                    <p className="text-lg font-bold font-mono">
+                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.totalInvoiced, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Total Halal</p>
+                    <p className="text-lg font-bold font-mono text-primary">
+                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.halalAmount, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Total Received</p>
+                    <p className="text-lg font-bold font-mono text-primary">
+                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.totalPaid, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Total Outstanding</p>
+                    <p className="text-lg font-bold font-mono text-destructive">
+                      {profitLoss.customerPaymentSummary.reduce((sum, c) => sum + c.balance, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="profit" className="space-y-4">
           <Card>

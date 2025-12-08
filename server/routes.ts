@@ -501,6 +501,8 @@ export async function registerRoutes(
       const invoices = await storage.getInvoices();
       const purchases = await storage.getPurchases();
       const vendorReturns = await storage.getVendorReturns();
+      const customers = await storage.getCustomers();
+      const allCustomerPayments = await storage.getCustomerPayments();
 
       let totalPurchases = 0;
       let totalSales = 0;
@@ -530,6 +532,66 @@ export async function registerRoutes(
         marginPercent: ((p.salePrice - p.purchasePrice) / p.purchasePrice) * 100,
       }));
 
+      // Halal charge breakdown
+      let totalHalalCollected = 0;
+      let invoicesWithHalal = 0;
+      let invoicesWithoutHalal = 0;
+      let salesWithHalal = 0;  // Grand total of invoices WITH Halal charge
+      let salesWithoutHalal = 0;  // Grand total of invoices WITHOUT Halal charge
+
+      // Build invoice details with payment info
+      const invoiceDetails = invoices.map((invoice) => {
+        const customer = customers.find((c) => c.id === invoice.customerId);
+        const customerName = customer?.name || "Unknown";
+        
+        // Track Halal amounts - only count actual Halal charge amount
+        if (invoice.includeHalalCharge) {
+          invoicesWithHalal++;
+          totalHalalCollected += invoice.halalChargeAmount || 0;
+          salesWithHalal += invoice.grandTotal;
+        } else {
+          invoicesWithoutHalal++;
+          salesWithoutHalal += invoice.grandTotal;
+        }
+
+        return {
+          id: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          date: invoice.date,
+          customerName,
+          customerId: invoice.customerId,
+          subtotal: invoice.subtotal,
+          includeHalalCharge: invoice.includeHalalCharge,
+          halalChargePercent: invoice.halalChargePercent,
+          halalChargeAmount: invoice.halalChargeAmount || 0,
+          grandTotal: invoice.grandTotal,
+        };
+      });
+
+      // Calculate customer-wise payment summary
+      const customerPaymentSummary = customers.map((customer) => {
+        const customerInvoices = invoices.filter((i) => i.customerId === customer.id);
+        const customerPayments = allCustomerPayments.filter((p) => p.customerId === customer.id);
+        
+        const totalInvoiced = customerInvoices.reduce((sum, i) => sum + i.grandTotal, 0);
+        const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
+        const balance = totalInvoiced - totalPaid;
+
+        const halalAmount = customerInvoices
+          .filter((i) => i.includeHalalCharge)
+          .reduce((sum, i) => sum + (i.halalChargeAmount || 0), 0);
+
+        return {
+          customerId: customer.id,
+          customerName: customer.name,
+          totalInvoiced,
+          totalPaid,
+          balance,
+          halalAmount,
+          paymentStatus: balance <= 0 ? "paid" : balance < totalInvoiced ? "partial" : "unpaid",
+        };
+      }).filter((c) => c.totalInvoiced > 0); // Only show customers with invoices
+
       res.json({
         totalPurchases,
         totalReturns,
@@ -537,6 +599,16 @@ export async function registerRoutes(
         totalSales,
         grossProfit: totalSales - netPurchases,
         productProfits,
+        // Halal charge data
+        halalSummary: {
+          totalHalalCollected,
+          invoicesWithHalal,
+          invoicesWithoutHalal,
+          salesWithHalal,
+          salesWithoutHalal,
+        },
+        invoiceDetails,
+        customerPaymentSummary,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to generate report" });
