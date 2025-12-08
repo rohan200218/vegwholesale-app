@@ -64,7 +64,7 @@ export default function Weighing() {
   
   // Halal Cash by Hand (direct cash payment separate from invoice)
   const [includeHalalCash, setIncludeHalalCash] = useState(false);
-  const [halalCashPercent, setHalalCashPercent] = useState("5");
+  const [halalCashRatePerKg, setHalalCashRatePerKg] = useState("2"); // Rate per KG
   const [halalCashAmount, setHalalCashAmount] = useState("");
   
   // Scale connection state
@@ -271,15 +271,20 @@ export default function Weighing() {
   const halalAmount = includeHalalCharge ? (subtotal * parseFloat(halalChargePercent || "0")) / 100 : 0;
   const grandTotal = subtotal + halalAmount;
   
-  // Calculate Halal cash amount when subtotal or percentage changes
-  const calculatedHalalCash = (subtotal * parseFloat(halalCashPercent || "0")) / 100;
+  // Calculate total KG weight from weight-based items only
+  const totalKgWeight = weighingItems
+    .filter(item => isWeightBasedUnit(item.unit))
+    .reduce((sum, item) => sum + item.quantity, 0);
   
-  // Auto-update halal cash amount when subtotal changes (if using auto-calculation)
+  // Calculate Halal cash amount based on rate per KG
+  const calculatedHalalCash = totalKgWeight * parseFloat(halalCashRatePerKg || "0");
+  
+  // Auto-update halal cash amount when weight or rate changes
   useEffect(() => {
-    if (includeHalalCash && !halalCashAmount) {
+    if (includeHalalCash) {
       setHalalCashAmount(calculatedHalalCash.toFixed(2));
     }
-  }, [subtotal, halalCashPercent, includeHalalCash]);
+  }, [totalKgWeight, halalCashRatePerKg, includeHalalCash, calculatedHalalCash]);
   
   // Mutation to create halal cash payment
   const createHalalCash = useMutation({
@@ -773,9 +778,7 @@ export default function Weighing() {
                     checked={includeHalalCash}
                     onChange={(e) => {
                       setIncludeHalalCash(e.target.checked);
-                      if (e.target.checked && subtotal > 0) {
-                        setHalalCashAmount(calculatedHalalCash.toFixed(2));
-                      } else if (!e.target.checked) {
+                      if (!e.target.checked) {
                         setHalalCashAmount("");
                       }
                     }}
@@ -789,35 +792,32 @@ export default function Weighing() {
                 </div>
                 {includeHalalCash && (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        value={halalCashPercent}
-                        onChange={(e) => {
-                          setHalalCashPercent(e.target.value);
-                          const newCalc = (subtotal * parseFloat(e.target.value || "0")) / 100;
-                          setHalalCashAmount(newCalc.toFixed(2));
-                        }}
-                        className="w-20"
-                        data-testid="input-halal-cash-percent"
-                      />
-                      <span className="text-sm text-muted-foreground">%</span>
-                      <span className="text-sm text-muted-foreground">=</span>
+                    <div className="flex justify-between gap-2 text-sm">
+                      <span className="text-muted-foreground">Total Weight:</span>
+                      <span className="font-mono font-medium" data-testid="text-total-kg">
+                        {totalKgWeight.toFixed(2)} KG
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Amount:</span>
+                      <span className="text-sm text-muted-foreground">Rate:</span>
                       <Input
                         type="number"
                         step="0.01"
-                        value={halalCashAmount}
-                        onChange={(e) => setHalalCashAmount(e.target.value)}
-                        className="flex-1"
-                        placeholder="Enter amount"
-                        data-testid="input-halal-cash-amount"
+                        value={halalCashRatePerKg}
+                        onChange={(e) => setHalalCashRatePerKg(e.target.value)}
+                        className="w-20"
+                        data-testid="input-halal-rate-per-kg"
                       />
+                      <span className="text-sm text-muted-foreground">per KG</span>
+                    </div>
+                    <div className="flex justify-between gap-2 text-sm pt-1 border-t border-dashed">
+                      <span className="font-medium">Halal Cash:</span>
+                      <span className="font-mono font-semibold" data-testid="text-halal-cash-amount">
+                        {parseFloat(halalCashAmount || "0").toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                      </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Cash given directly for Halal (recorded separately from invoice)
+                      {totalKgWeight.toFixed(2)} KG x ₹{halalCashRatePerKg}/KG = ₹{calculatedHalalCash.toFixed(2)}
                     </p>
                   </div>
                 )}
