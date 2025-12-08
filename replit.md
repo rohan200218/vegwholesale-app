@@ -4,19 +4,23 @@
 A comprehensive business management system for vegetable wholesale operations. The application helps manage the entire workflow from buying vegetables from vendors/farmers to selling to customers.
 
 ## Current State
-MVP complete with all core features implemented:
-- Vendor management
-- Customer management  
+Full-featured application with complete business workflow:
+- Vendor management with payment tracking
+- Customer management with receivables tracking
 - Vehicle tracking
 - Product catalog
-- Stock management
+- Stock management with movement history
 - Purchase orders
 - Invoice/billing with Halal charge option
+- Payment tracking (vendor & customer)
+- Business reports (profit/loss, stock movements)
+- Print center for invoices and delivery challans
+- Company settings for branding
 
 ## Technology Stack
 - **Frontend**: React with TypeScript, TailwindCSS, Shadcn UI
 - **Backend**: Express.js with TypeScript
-- **Storage**: In-memory storage (MemStorage)
+- **Database**: PostgreSQL with Drizzle ORM
 - **Routing**: Wouter for client-side routing
 - **State Management**: TanStack Query (React Query)
 
@@ -37,12 +41,17 @@ client/
       stock.tsx       # Stock management
       purchases.tsx   # Purchase orders
       billing.tsx     # Customer invoices
+      payments.tsx    # Vendor/customer payments
+      reports.tsx     # Business reports
+      print.tsx       # Print center
+      settings.tsx    # Company settings
     App.tsx           # Main app with routing
 server/
   routes.ts           # API endpoints
-  storage.ts          # Data storage layer
+  storage.ts          # Database storage layer
+  db.ts               # Database connection
 shared/
-  schema.ts           # Data models and types
+  schema.ts           # Data models and types (Drizzle schema)
 ```
 
 ## Key Features
@@ -50,10 +59,12 @@ shared/
 ### Vendor Management
 - Add/edit/delete vendors
 - Track name, phone, email, address
+- View outstanding balances
 
 ### Customer Management
 - Add/edit/delete customers
 - Track contact information
+- View receivable balances
 
 ### Vehicle Tracking
 - Register vehicles for stock receiving
@@ -68,7 +79,7 @@ shared/
 ### Stock Management
 - Real-time inventory tracking
 - Add/reduce stock with reasons
-- Stock movement history
+- Stock movement history with date filtering
 - Low stock alerts
 
 ### Purchase Orders
@@ -84,11 +95,35 @@ shared/
 - Auto-calculate totals
 - Stock deduction on invoice creation
 
+### Payment Tracking
+- Record vendor payments (cash, bank, UPI, cheque)
+- Record customer payments
+- Track outstanding balances
+- Payment history for audit
+
+### Reports
+- Profit/loss calculations
+- Product margin analysis
+- Stock movement reports with date filtering
+- Low stock alerts
+
+### Print Center
+- Generate tax invoices
+- Generate delivery challans
+- Company branding on documents
+- Print-ready format
+
+### Settings
+- Company name and contact info
+- GST number
+- Bank details for invoices
+
 ## API Endpoints
 
 ### Vendors
 - GET /api/vendors
 - GET /api/vendors/:id
+- GET /api/vendors/:id/balance
 - POST /api/vendors
 - PATCH /api/vendors/:id
 - DELETE /api/vendors/:id
@@ -96,6 +131,7 @@ shared/
 ### Customers
 - GET /api/customers
 - GET /api/customers/:id
+- GET /api/customers/:id/balance
 - POST /api/customers
 - PATCH /api/customers/:id
 - DELETE /api/customers/:id
@@ -130,6 +166,35 @@ shared/
 - GET /api/invoices/:id/items
 - POST /api/invoices
 
+### Payments
+- GET /api/vendor-payments
+- POST /api/vendor-payments
+- GET /api/customer-payments
+- POST /api/customer-payments
+
+### Reports
+- GET /api/reports/profit-loss
+- GET /api/reports/vendor-balances
+- GET /api/reports/customer-balances
+
+### Settings
+- GET /api/company-settings
+- POST /api/company-settings
+
+## Database Schema (PostgreSQL)
+- vendors - Vendor information
+- customers - Customer information
+- vehicles - Vehicle tracking
+- products - Product catalog with pricing
+- stock_movements - Stock in/out history
+- purchases - Purchase order headers
+- purchase_items - Purchase line items
+- invoices - Invoice headers
+- invoice_items - Invoice line items
+- vendor_payments - Vendor payment records
+- customer_payments - Customer payment records
+- company_settings - Company configuration
+
 ## Design System
 - Font: IBM Plex Sans (primary), IBM Plex Mono (numbers)
 - Color scheme: Green primary color (142 hue) for vegetable/organic theme
@@ -142,4 +207,6 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 8, 2025: Added payments, reports, print center, and settings pages
+- December 8, 2025: Migrated from in-memory storage to PostgreSQL database
 - December 8, 2025: Initial MVP release with all core features
