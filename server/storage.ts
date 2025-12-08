@@ -327,8 +327,10 @@ export class DatabaseStorage implements IStorage {
     const [invoice] = await db.insert(invoices).values({
       ...insertInvoice,
       status: insertInvoice.status ?? "pending",
-      hamaliChargePercent: insertInvoice.hamaliChargePercent ?? 2,
+      hamaliRatePerKg: insertInvoice.hamaliRatePerKg ?? 2,
       hamaliChargeAmount: insertInvoice.hamaliChargeAmount ?? 0,
+      hamaliPaidByCash: insertInvoice.hamaliPaidByCash ?? false,
+      totalKgWeight: insertInvoice.totalKgWeight ?? 0,
     }).returning();
 
     for (const item of items) {

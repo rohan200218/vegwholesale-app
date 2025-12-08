@@ -59,13 +59,10 @@ export default function Weighing() {
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
   const [weighingItems, setWeighingItems] = useState<WeighingItem[]>([]);
-  const [includeHamaliCharge, setIncludeHamaliCharge] = useState(false);
-  const [hamaliChargePercent, setHamaliChargePercent] = useState("5");
-  
-  // Hamali Cash by Hand (direct cash payment separate from invoice)
-  const [includeHamaliCash, setIncludeHamaliCash] = useState(false);
-  const [hamaliCashRatePerKg, setHamaliCashRatePerKg] = useState("2"); // Rate per KG
-  const [hamaliCashAmount, setHamaliCashAmount] = useState("");
+  // Hamali charge state - simplified with rate per KG and two checkboxes
+  const [includeHamali, setIncludeHamali] = useState(false);
+  const [hamaliRatePerKg, setHamaliRatePerKg] = useState("2"); // Rate per KG
+  const [hamaliPaidByCash, setHamaliPaidByCash] = useState(false);
   
   // Scale connection state
   const [scaleConnected, setScaleConnected] = useState(false);
@@ -183,8 +180,10 @@ export default function Weighing() {
       date: string;
       subtotal: number;
       includeHamaliCharge: boolean;
-      hamaliChargePercent: number;
+      hamaliRatePerKg: number;
       hamaliChargeAmount: number;
+      hamaliPaidByCash: boolean;
+      totalKgWeight: number;
       grandTotal: number;
       items: { productId: string; quantity: number; unitPrice: number; total: number }[];
     }) => {
@@ -194,11 +193,12 @@ export default function Weighing() {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/vehicles", selectedVehicle, "inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hamali-cash"] });
       setWeighingItems([]);
       setSelectedCustomer("");
       setSelectedVehicle("");
-      setIncludeHamaliCash(false);
-      setHamaliCashAmount("");
+      setIncludeHamali(false);
+      setHamaliPaidByCash(false);
       toast({ title: "Invoice Created", description: "Weighing completed and invoice generated successfully." });
     },
     onError: () => {
@@ -268,33 +268,18 @@ export default function Weighing() {
   };
 
   const subtotal = weighingItems.reduce((sum, item) => sum + item.total, 0);
-  const hamaliAmount = includeHamaliCharge ? (subtotal * parseFloat(hamaliChargePercent || "0")) / 100 : 0;
-  const grandTotal = subtotal + hamaliAmount;
   
   // Calculate total KG weight from weight-based items only
   const totalKgWeight = weighingItems
     .filter(item => isWeightBasedUnit(item.unit))
     .reduce((sum, item) => sum + item.quantity, 0);
   
-  // Calculate Hamali cash amount based on rate per KG
-  const calculatedHamaliCash = totalKgWeight * parseFloat(hamaliCashRatePerKg || "0");
+  // Calculate Hamali amount based on rate per KG
+  const hamaliAmount = includeHamali ? totalKgWeight * parseFloat(hamaliRatePerKg || "0") : 0;
   
-  // Auto-update hamali cash amount when weight or rate changes
-  useEffect(() => {
-    if (includeHamaliCash) {
-      setHamaliCashAmount(calculatedHamaliCash.toFixed(2));
-    }
-  }, [totalKgWeight, hamaliCashRatePerKg, includeHamaliCash, calculatedHamaliCash]);
-  
-  // Mutation to create hamali cash payment
-  const createHamaliCash = useMutation({
-    mutationFn: async (data: { amount: number; date: string; paymentMethod: string; customerId?: string; notes?: string }) => {
-      return apiRequest("POST", "/api/hamali-cash", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/hamali-cash"] });
-    },
-  });
+  // Grand total: Add hamali only if NOT paid by cash
+  // If paid by cash, hamali is recorded separately and not added to invoice
+  const grandTotal = subtotal + (includeHamali && !hamaliPaidByCash ? hamaliAmount : 0);
 
   const handleGenerateInvoice = () => {
     if (!selectedCustomer) {
@@ -309,19 +294,6 @@ export default function Weighing() {
 
     const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
     const today = new Date().toISOString().split("T")[0];
-    
-    // Create hamali cash payment if enabled
-    const hamaliCashValue = parseFloat(hamaliCashAmount || "0");
-    if (includeHamaliCash && hamaliCashValue > 0) {
-      const customerName = customers.find(c => c.id === selectedCustomer)?.name || "";
-      createHamaliCash.mutate({
-        amount: hamaliCashValue,
-        date: today,
-        paymentMethod: "cash",
-        customerId: selectedCustomer,
-        notes: `Hamali cash from ${customerName} - Invoice ${invoiceNumber}`,
-      });
-    }
 
     createInvoice.mutate({
       customerId: selectedCustomer,
@@ -329,9 +301,11 @@ export default function Weighing() {
       invoiceNumber,
       date: today,
       subtotal,
-      includeHamaliCharge,
-      hamaliChargePercent: parseFloat(hamaliChargePercent || "0"),
+      includeHamaliCharge: includeHamali,
+      hamaliRatePerKg: parseFloat(hamaliRatePerKg || "0"),
       hamaliChargeAmount: hamaliAmount,
+      hamaliPaidByCash,
+      totalKgWeight,
       grandTotal,
       items: weighingItems.map((item) => ({
         productId: item.productId,
@@ -740,85 +714,78 @@ export default function Weighing() {
                 </div>
               </div>
 
+              {/* Hamali Charge Section */}
               <div className="space-y-3 pt-3 border-t">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="hamaliCharge"
-                    checked={includeHamaliCharge}
-                    onChange={(e) => setIncludeHamaliCharge(e.target.checked)}
-                    className="rounded"
-                    data-testid="checkbox-hamali"
-                  />
-                  <Label htmlFor="hamaliCharge" className="text-sm">Include Hamali Charge</Label>
-                </div>
-                {includeHamaliCharge && (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      value={hamaliChargePercent}
-                      onChange={(e) => setHamaliChargePercent(e.target.value)}
-                      className="w-20"
-                      data-testid="input-hamali-percent"
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                    <span className="ml-auto font-mono text-sm" data-testid="text-hamali-amount">
-                      {hamaliAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Hamali Cash by Hand Section */}
-              <div className="space-y-3 pt-3 border-t">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="hamaliCash"
-                    checked={includeHamaliCash}
+                    id="includeHamali"
+                    checked={includeHamali}
                     onChange={(e) => {
-                      setIncludeHamaliCash(e.target.checked);
+                      setIncludeHamali(e.target.checked);
                       if (!e.target.checked) {
-                        setHamaliCashAmount("");
+                        setHamaliPaidByCash(false);
                       }
                     }}
                     className="rounded"
-                    data-testid="checkbox-hamali-cash"
+                    data-testid="checkbox-include-hamali"
                   />
-                  <Label htmlFor="hamaliCash" className="text-sm flex items-center gap-1">
-                    <HandCoins className="h-3 w-3" />
-                    Hamali Cash by Hand
-                  </Label>
+                  <Label htmlFor="includeHamali" className="text-sm">Include Hamali</Label>
                 </div>
-                {includeHamaliCash && (
-                  <div className="space-y-2">
+                
+                {includeHamali && (
+                  <div className="space-y-3 pl-5">
                     <div className="flex justify-between gap-2 text-sm">
                       <span className="text-muted-foreground">Total Weight:</span>
                       <span className="font-mono font-medium" data-testid="text-total-kg">
                         {totalKgWeight.toFixed(2)} KG
                       </span>
                     </div>
+                    
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Rate:</span>
                       <Input
                         type="number"
                         step="0.01"
-                        value={hamaliCashRatePerKg}
-                        onChange={(e) => setHamaliCashRatePerKg(e.target.value)}
+                        value={hamaliRatePerKg}
+                        onChange={(e) => setHamaliRatePerKg(e.target.value)}
                         className="w-20"
                         data-testid="input-hamali-rate-per-kg"
                       />
                       <span className="text-sm text-muted-foreground">per KG</span>
                     </div>
-                    <div className="flex justify-between gap-2 text-sm pt-1 border-t border-dashed">
-                      <span className="font-medium">Hamali Cash:</span>
-                      <span className="font-mono font-semibold" data-testid="text-hamali-cash-amount">
-                        {parseFloat(hamaliCashAmount || "0").toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                    
+                    <div className="flex justify-between gap-2 text-sm">
+                      <span className="font-medium">Hamali Amount:</span>
+                      <span className="font-mono font-semibold" data-testid="text-hamali-amount">
+                        {hamaliAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                       </span>
                     </div>
+                    
                     <p className="text-xs text-muted-foreground">
-                      {totalKgWeight.toFixed(2)} KG x ₹{hamaliCashRatePerKg}/KG = ₹{calculatedHamaliCash.toFixed(2)}
+                      {totalKgWeight.toFixed(2)} KG x ₹{hamaliRatePerKg}/KG = ₹{hamaliAmount.toFixed(2)}
                     </p>
+                    
+                    <div className="flex items-center gap-2 pt-2 border-t border-dashed">
+                      <input
+                        type="checkbox"
+                        id="hamaliPaidByCash"
+                        checked={hamaliPaidByCash}
+                        onChange={(e) => setHamaliPaidByCash(e.target.checked)}
+                        className="rounded"
+                        data-testid="checkbox-hamali-paid-cash"
+                      />
+                      <Label htmlFor="hamaliPaidByCash" className="text-sm flex items-center gap-1">
+                        <HandCoins className="h-3 w-3" />
+                        Paid by Cash
+                      </Label>
+                    </div>
+                    
+                    {hamaliPaidByCash && (
+                      <p className="text-xs text-muted-foreground pl-5">
+                        Hamali will be recorded as cash payment (not added to invoice total)
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

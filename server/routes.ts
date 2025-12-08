@@ -306,8 +306,10 @@ export async function registerRoutes(
     date: z.string(),
     subtotal: z.number(),
     includeHamaliCharge: z.boolean(),
-    hamaliChargePercent: z.number().optional(),
+    hamaliRatePerKg: z.number().optional(),
     hamaliChargeAmount: z.number().optional(),
+    hamaliPaidByCash: z.boolean().optional(),
+    totalKgWeight: z.number().optional(),
     grandTotal: z.number(),
     status: z.string().optional(),
     items: z.array(
@@ -596,8 +598,10 @@ export async function registerRoutes(
           customerId: invoice.customerId,
           subtotal: invoice.subtotal,
           includeHamaliCharge: invoice.includeHamaliCharge,
-          hamaliChargePercent: invoice.hamaliChargePercent,
+          hamaliRatePerKg: invoice.hamaliRatePerKg,
           hamaliChargeAmount: invoice.hamaliChargeAmount || 0,
+          hamaliPaidByCash: invoice.hamaliPaidByCash,
+          totalKgWeight: invoice.totalKgWeight,
           grandTotal: invoice.grandTotal,
         };
       });
