@@ -234,9 +234,12 @@ export default function Weighing() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Scale className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-semibold" data-testid="text-page-title">
-            Weighing Station
-          </h1>
+          <div>
+            <h1 className="text-2xl font-semibold" data-testid="text-page-title">
+              Weighing Station
+            </h1>
+            <p className="text-sm text-muted-foreground">Take products from vehicle, weigh, and bill customer</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -250,7 +253,7 @@ export default function Weighing() {
           </div>
           <Badge variant={scaleConnected ? "default" : "secondary"} className="gap-1">
             {scaleConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-            {scaleConnected ? "Connected" : "Disconnected"}
+            {scaleConnected ? "Scale Connected" : "Scale Disconnected"}
           </Badge>
         </div>
       </div>
@@ -320,13 +323,13 @@ export default function Weighing() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Truck className="h-4 w-4" />
-                Select Vehicle & Customer
+                Step 1: Select Vehicle & Customer
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Vehicle (Truck)</Label>
+                  <Label>Vehicle (Parked Near Shop)</Label>
                   <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
                     <SelectTrigger data-testid="select-vehicle">
                       <SelectValue placeholder="Select vehicle" />
@@ -363,7 +366,7 @@ export default function Weighing() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Scale className="h-4 w-4" />
-                Add Weighed Items
+                Step 2: Weigh Products & Add to Bill
               </CardTitle>
             </CardHeader>
             <CardContent>
