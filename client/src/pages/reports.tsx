@@ -18,11 +18,22 @@ import type { Product, StockMovement } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type HalalSummary = {
+  invoiceHalalTotal: number;
+  directCashHalalTotal: number;
   totalHalalCollected: number;
   invoicesWithHalal: number;
   invoicesWithoutHalal: number;
   salesWithHalal: number;
   salesWithoutHalal: number;
+};
+
+type HalalCashPayment = {
+  id: string;
+  amount: number;
+  date: string;
+  paymentMethod: string;
+  customerId?: string;
+  notes?: string;
 };
 
 type InvoiceDetail = {
@@ -213,26 +224,27 @@ export default function Reports() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-md bg-primary/10 border border-primary/20">
               <p className="text-sm text-muted-foreground">Total Halal Collected</p>
               <p className="text-2xl font-bold font-mono text-primary" data-testid="text-halal-collected">
                 {(profitLoss?.halalSummary?.totalHalalCollected || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Amount from all invoices with Halal charge</p>
+              <p className="text-xs text-muted-foreground mt-1">Invoice + Direct Cash</p>
             </div>
             <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <CircleCheck className="h-4 w-4 text-primary" />
-                Halal Included
+              <p className="text-sm text-muted-foreground">From Invoices</p>
+              <p className="text-xl font-bold font-mono" data-testid="text-halal-from-invoices">
+                {(profitLoss?.halalSummary?.invoiceHalalTotal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
               </p>
-              <p className="text-xl font-bold font-mono" data-testid="text-halal-included-count">
-                {profitLoss?.halalSummary?.invoicesWithHalal || 0} invoices
+              <p className="text-xs text-muted-foreground mt-1">{profitLoss?.halalSummary?.invoicesWithHalal || 0} invoices with Halal</p>
+            </div>
+            <div className="p-4 rounded-md bg-muted/50">
+              <p className="text-sm text-muted-foreground">Direct Cash</p>
+              <p className="text-xl font-bold font-mono" data-testid="text-halal-direct-cash">
+                {(profitLoss?.halalSummary?.directCashHalalTotal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Sales total:</p>
-              <p className="text-sm font-mono">
-                {(profitLoss?.halalSummary?.salesWithHalal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Cash given directly to Halal</p>
             </div>
             <div className="p-4 rounded-md bg-muted/50">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -242,10 +254,7 @@ export default function Reports() {
               <p className="text-xl font-bold font-mono" data-testid="text-halal-excluded-count">
                 {profitLoss?.halalSummary?.invoicesWithoutHalal || 0} invoices
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Sales total:</p>
-              <p className="text-sm font-mono">
-                {(profitLoss?.halalSummary?.salesWithoutHalal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Sales: {(profitLoss?.halalSummary?.salesWithoutHalal || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</p>
             </div>
           </div>
         </CardContent>

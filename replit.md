@@ -124,9 +124,10 @@ shared/
 ### Reports
 - Profit/loss calculations (including vendor returns in net cost)
 - **Halal Charge Summary Section:**
-  - Total Halal collected (sum of all Halal charges)
-  - Invoices with Halal included (count and sales total)
-  - Invoices with Halal excluded (count and sales total)
+  - Total Halal collected (invoice Halal + direct cash)
+  - From Invoices: Halal amount from invoices with count
+  - Direct Cash: Halal cash given directly (not through invoices)
+  - Invoices without Halal: count and sales total
 - **Invoice Details Tab:**
   - Each invoice with Halal status badge (Included/Excluded)
   - Halal percentage and amount per invoice
@@ -211,6 +212,11 @@ shared/
 - POST /api/vendor-payments
 - GET /api/customer-payments
 - POST /api/customer-payments
+
+### Halal Cash Payments
+- GET /api/halal-cash
+- POST /api/halal-cash
+- DELETE /api/halal-cash/:id
 
 ### Reports
 - GET /api/reports/profit-loss
