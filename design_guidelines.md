@@ -59,7 +59,7 @@
 - **Required Fields**: Asterisk (*) indicator next to label
 - **Dropdowns**: Searchable selects for Vendors, Customers, Products
 - **Number Inputs**: Steppers for quantities, formatted inputs for currency
-- **Toggle Switches**: For Halal Charge include/exclude option
+- **Toggle Switches**: For Hamali Charge include/exclude option
 - **Submit Actions**: Primary button (right-aligned), secondary cancel button
 
 ### Billing Interface
@@ -67,7 +67,7 @@
 - **Line Items Table**: Product, Quantity, Unit Price, Total columns
 - **Calculations Section**: 
   - Subtotal (right-aligned)
-  - Halal Charge toggle with amount display
+  - Hamali Charge toggle with amount display
   - Grand Total (emphasized with larger font)
 - **Action Buttons**: Print, Save, Send to Customer
 

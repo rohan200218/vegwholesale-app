@@ -31,7 +31,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Plus, CreditCard, Wallet, Trash2 } from "lucide-react";
-import type { Vendor, Customer, VendorPayment, CustomerPayment, HalalCashPayment } from "@shared/schema";
+import type { Vendor, Customer, VendorPayment, CustomerPayment, HamaliCashPayment } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type VendorWithBalance = Vendor & { totalPurchases: number; totalPayments: number; balance: number };
@@ -46,10 +46,10 @@ export default function Payments() {
   const [vendorPaymentAmount, setVendorPaymentAmount] = useState("");
   const [customerPaymentAmount, setCustomerPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [halalDialogOpen, setHalalDialogOpen] = useState(false);
-  const [halalAmount, setHalalAmount] = useState("");
-  const [halalCustomerId, setHalalCustomerId] = useState<string>("none");
-  const [halalNotes, setHalalNotes] = useState("");
+  const [hamaliDialogOpen, setHamaliDialogOpen] = useState(false);
+  const [hamaliAmount, setHamaliAmount] = useState("");
+  const [hamaliCustomerId, setHamaliCustomerId] = useState<string>("none");
+  const [hamaliNotes, setHamaliNotes] = useState("");
 
   const { data: vendors = [], isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ["/api/vendors"],
@@ -75,8 +75,8 @@ export default function Payments() {
     queryKey: ["/api/customer-payments"],
   });
 
-  const { data: halalCashPayments = [] } = useQuery<HalalCashPayment[]>({
-    queryKey: ["/api/halal-cash"],
+  const { data: hamaliCashPayments = [] } = useQuery<HamaliCashPayment[]>({
+    queryKey: ["/api/hamali-cash"],
   });
 
   const createVendorPayment = useMutation({
@@ -113,32 +113,32 @@ export default function Payments() {
     },
   });
 
-  const createHalalCashPayment = useMutation({
+  const createHamaliCashPayment = useMutation({
     mutationFn: async (data: { amount: number; date: string; paymentMethod: string; customerId?: string; notes?: string }) => {
-      return apiRequest("POST", "/api/halal-cash", data);
+      return apiRequest("POST", "/api/hamali-cash", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/halal-cash"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hamali-cash"] });
       queryClient.invalidateQueries({ queryKey: ["/api/reports/profit-loss"] });
-      setHalalDialogOpen(false);
-      setHalalAmount("");
-      setHalalCustomerId("none");
-      setHalalNotes("");
-      toast({ title: "Halal payment recorded", description: "Direct Halal cash payment has been recorded." });
+      setHamaliDialogOpen(false);
+      setHamaliAmount("");
+      setHamaliCustomerId("none");
+      setHamaliNotes("");
+      toast({ title: "Hamali payment recorded", description: "Direct Hamali cash payment has been recorded." });
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to record Halal payment.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to record Hamali payment.", variant: "destructive" });
     },
   });
 
-  const deleteHalalCashPayment = useMutation({
+  const deleteHamaliCashPayment = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("DELETE", `/api/halal-cash/${id}`);
+      return apiRequest("DELETE", `/api/hamali-cash/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/halal-cash"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hamali-cash"] });
       queryClient.invalidateQueries({ queryKey: ["/api/reports/profit-loss"] });
-      toast({ title: "Payment deleted", description: "Halal cash payment has been deleted." });
+      toast({ title: "Payment deleted", description: "Hamali cash payment has been deleted." });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete payment.", variant: "destructive" });
@@ -165,14 +165,14 @@ export default function Payments() {
     });
   };
 
-  const handleHalalPayment = () => {
-    if (!halalAmount) return;
-    createHalalCashPayment.mutate({
-      amount: parseFloat(halalAmount),
+  const handleHamaliPayment = () => {
+    if (!hamaliAmount) return;
+    createHamaliCashPayment.mutate({
+      amount: parseFloat(hamaliAmount),
       date: new Date().toISOString().split("T")[0],
       paymentMethod: "cash",
-      customerId: halalCustomerId === "none" ? undefined : halalCustomerId,
-      notes: halalNotes || undefined,
+      customerId: hamaliCustomerId === "none" ? undefined : hamaliCustomerId,
+      notes: hamaliNotes || undefined,
     });
   };
 
@@ -239,7 +239,7 @@ export default function Payments() {
         <TabsList>
           <TabsTrigger value="vendors" data-testid="tab-vendors">Vendor Payments</TabsTrigger>
           <TabsTrigger value="customers" data-testid="tab-customers">Customer Payments</TabsTrigger>
-          <TabsTrigger value="halal" data-testid="tab-halal">Halal Cash</TabsTrigger>
+          <TabsTrigger value="hamali" data-testid="tab-hamali">Hamali Cash</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vendors" className="space-y-4">
@@ -538,35 +538,35 @@ export default function Payments() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="halal" className="space-y-4">
+        <TabsContent value="hamali" className="space-y-4">
           <div className="flex justify-end">
-            <Dialog open={halalDialogOpen} onOpenChange={setHalalDialogOpen}>
+            <Dialog open={hamaliDialogOpen} onOpenChange={setHamaliDialogOpen}>
               <DialogTrigger asChild>
-                <Button data-testid="button-add-halal-payment">
+                <Button data-testid="button-add-hamali-payment">
                   <Plus className="h-4 w-4 mr-2" />
-                  Record Halal Cash
+                  Record Hamali Cash
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Record Halal Cash Payment</DialogTitle>
-                  <DialogDescription>Record direct cash given for Halal (not through invoice)</DialogDescription>
+                  <DialogTitle>Record Hamali Cash Payment</DialogTitle>
+                  <DialogDescription>Record direct cash given for Hamali (not through invoice)</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
                   <div className="space-y-2">
                     <Label>Amount</Label>
                     <Input
                       type="number"
-                      value={halalAmount}
-                      onChange={(e) => setHalalAmount(e.target.value)}
+                      value={hamaliAmount}
+                      onChange={(e) => setHamaliAmount(e.target.value)}
                       placeholder="Enter amount"
-                      data-testid="input-halal-amount"
+                      data-testid="input-hamali-amount"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Customer (Optional)</Label>
-                    <Select value={halalCustomerId} onValueChange={setHalalCustomerId}>
-                      <SelectTrigger data-testid="select-halal-customer">
+                    <Select value={hamaliCustomerId} onValueChange={setHamaliCustomerId}>
+                      <SelectTrigger data-testid="select-hamali-customer">
                         <SelectValue placeholder="Select customer (optional)" />
                       </SelectTrigger>
                       <SelectContent>
@@ -582,19 +582,19 @@ export default function Payments() {
                   <div className="space-y-2">
                     <Label>Notes (Optional)</Label>
                     <Input
-                      value={halalNotes}
-                      onChange={(e) => setHalalNotes(e.target.value)}
+                      value={hamaliNotes}
+                      onChange={(e) => setHamaliNotes(e.target.value)}
                       placeholder="Add notes"
-                      data-testid="input-halal-notes"
+                      data-testid="input-hamali-notes"
                     />
                   </div>
                   <Button
-                    onClick={handleHalalPayment}
-                    disabled={!halalAmount || createHalalCashPayment.isPending}
+                    onClick={handleHamaliPayment}
+                    disabled={!hamaliAmount || createHamaliCashPayment.isPending}
                     className="w-full"
-                    data-testid="button-submit-halal-payment"
+                    data-testid="button-submit-hamali-payment"
                   >
-                    {createHalalCashPayment.isPending ? "Recording..." : "Record Payment"}
+                    {createHamaliCashPayment.isPending ? "Recording..." : "Record Payment"}
                   </Button>
                 </div>
               </DialogContent>
@@ -603,7 +603,7 @@ export default function Payments() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Direct Halal Cash Payments</CardTitle>
+              <CardTitle>Direct Hamali Cash Payments</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -617,15 +617,15 @@ export default function Payments() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {halalCashPayments.length === 0 ? (
+                  {hamaliCashPayments.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No direct Halal cash payments recorded
+                        No direct Hamali cash payments recorded
                       </TableCell>
                     </TableRow>
                   ) : (
-                    halalCashPayments.map((payment) => (
-                      <TableRow key={payment.id} data-testid={`row-halal-payment-${payment.id}`}>
+                    hamaliCashPayments.map((payment) => (
+                      <TableRow key={payment.id} data-testid={`row-hamali-payment-${payment.id}`}>
                         <TableCell>{payment.date}</TableCell>
                         <TableCell>{payment.customerId ? getCustomerName(payment.customerId) : "-"}</TableCell>
                         <TableCell className="text-muted-foreground">{payment.notes || "-"}</TableCell>
@@ -636,9 +636,9 @@ export default function Payments() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => deleteHalalCashPayment.mutate(payment.id)}
-                            disabled={deleteHalalCashPayment.isPending}
-                            data-testid={`button-delete-halal-${payment.id}`}
+                            onClick={() => deleteHamaliCashPayment.mutate(payment.id)}
+                            disabled={deleteHamaliCashPayment.isPending}
+                            data-testid={`button-delete-hamali-${payment.id}`}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -648,11 +648,11 @@ export default function Payments() {
                   )}
                 </TableBody>
               </Table>
-              {halalCashPayments.length > 0 && (
+              {hamaliCashPayments.length > 0 && (
                 <div className="mt-4 pt-4 border-t flex justify-between items-center">
-                  <span className="text-muted-foreground">Total Direct Halal Cash:</span>
-                  <span className="text-xl font-bold font-mono" data-testid="text-halal-cash-total">
-                    {halalCashPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                  <span className="text-muted-foreground">Total Direct Hamali Cash:</span>
+                  <span className="text-xl font-bold font-mono" data-testid="text-hamali-cash-total">
+                    {hamaliCashPayments.reduce((sum, p) => sum + p.amount, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                   </span>
                 </div>
               )}

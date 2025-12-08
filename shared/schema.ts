@@ -105,9 +105,9 @@ export const invoices = pgTable("invoices", {
   vehicleId: varchar("vehicle_id"),
   date: text("date").notNull(),
   subtotal: real("subtotal").notNull(),
-  includeHalalCharge: boolean("include_halal_charge").notNull().default(false),
-  halalChargePercent: real("halal_charge_percent").default(2),
-  halalChargeAmount: real("halal_charge_amount").default(0),
+  includeHamaliCharge: boolean("include_hamali_charge").notNull().default(false),
+  hamaliChargePercent: real("hamali_charge_percent").default(2),
+  hamaliChargeAmount: real("hamali_charge_amount").default(0),
   grandTotal: real("grand_total").notNull(),
   status: text("status").notNull().default("pending"),
 });
@@ -250,8 +250,8 @@ export const insertVendorReturnItemSchema = createInsertSchema(vendorReturnItems
 export type InsertVendorReturnItem = z.infer<typeof insertVendorReturnItemSchema>;
 export type VendorReturnItem = typeof vendorReturnItems.$inferSelect;
 
-// Halal Cash Payments - direct cash given to Halal (not through invoices)
-export const halalCashPayments = pgTable("halal_cash_payments", {
+// Hamali Cash Payments - direct cash given to Hamali (not through invoices)
+export const hamaliCashPayments = pgTable("hamali_cash_payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   amount: real("amount").notNull(),
   date: text("date").notNull(),
@@ -260,9 +260,9 @@ export const halalCashPayments = pgTable("halal_cash_payments", {
   notes: text("notes"),
 });
 
-export const insertHalalCashPaymentSchema = createInsertSchema(halalCashPayments).omit({ id: true });
-export type InsertHalalCashPayment = z.infer<typeof insertHalalCashPaymentSchema>;
-export type HalalCashPayment = typeof halalCashPayments.$inferSelect;
+export const insertHamaliCashPaymentSchema = createInsertSchema(hamaliCashPayments).omit({ id: true });
+export type InsertHamaliCashPayment = z.infer<typeof insertHamaliCashPaymentSchema>;
+export type HamaliCashPayment = typeof hamaliCashPayments.$inferSelect;
 
 // Users table for Replit Auth
 export const users = pgTable("users", {

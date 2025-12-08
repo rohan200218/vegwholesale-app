@@ -59,13 +59,13 @@ export default function Weighing() {
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
   const [weighingItems, setWeighingItems] = useState<WeighingItem[]>([]);
-  const [includeHalalCharge, setIncludeHalalCharge] = useState(false);
-  const [halalChargePercent, setHalalChargePercent] = useState("5");
+  const [includeHamaliCharge, setIncludeHamaliCharge] = useState(false);
+  const [hamaliChargePercent, setHamaliChargePercent] = useState("5");
   
-  // Halal Cash by Hand (direct cash payment separate from invoice)
-  const [includeHalalCash, setIncludeHalalCash] = useState(false);
-  const [halalCashRatePerKg, setHalalCashRatePerKg] = useState("2"); // Rate per KG
-  const [halalCashAmount, setHalalCashAmount] = useState("");
+  // Hamali Cash by Hand (direct cash payment separate from invoice)
+  const [includeHamaliCash, setIncludeHamaliCash] = useState(false);
+  const [hamaliCashRatePerKg, setHamaliCashRatePerKg] = useState("2"); // Rate per KG
+  const [hamaliCashAmount, setHamaliCashAmount] = useState("");
   
   // Scale connection state
   const [scaleConnected, setScaleConnected] = useState(false);
@@ -182,9 +182,9 @@ export default function Weighing() {
       invoiceNumber: string;
       date: string;
       subtotal: number;
-      includeHalalCharge: boolean;
-      halalChargePercent: number;
-      halalChargeAmount: number;
+      includeHamaliCharge: boolean;
+      hamaliChargePercent: number;
+      hamaliChargeAmount: number;
       grandTotal: number;
       items: { productId: string; quantity: number; unitPrice: number; total: number }[];
     }) => {
@@ -197,8 +197,8 @@ export default function Weighing() {
       setWeighingItems([]);
       setSelectedCustomer("");
       setSelectedVehicle("");
-      setIncludeHalalCash(false);
-      setHalalCashAmount("");
+      setIncludeHamaliCash(false);
+      setHamaliCashAmount("");
       toast({ title: "Invoice Created", description: "Weighing completed and invoice generated successfully." });
     },
     onError: () => {
@@ -268,31 +268,31 @@ export default function Weighing() {
   };
 
   const subtotal = weighingItems.reduce((sum, item) => sum + item.total, 0);
-  const halalAmount = includeHalalCharge ? (subtotal * parseFloat(halalChargePercent || "0")) / 100 : 0;
-  const grandTotal = subtotal + halalAmount;
+  const hamaliAmount = includeHamaliCharge ? (subtotal * parseFloat(hamaliChargePercent || "0")) / 100 : 0;
+  const grandTotal = subtotal + hamaliAmount;
   
   // Calculate total KG weight from weight-based items only
   const totalKgWeight = weighingItems
     .filter(item => isWeightBasedUnit(item.unit))
     .reduce((sum, item) => sum + item.quantity, 0);
   
-  // Calculate Halal cash amount based on rate per KG
-  const calculatedHalalCash = totalKgWeight * parseFloat(halalCashRatePerKg || "0");
+  // Calculate Hamali cash amount based on rate per KG
+  const calculatedHamaliCash = totalKgWeight * parseFloat(hamaliCashRatePerKg || "0");
   
-  // Auto-update halal cash amount when weight or rate changes
+  // Auto-update hamali cash amount when weight or rate changes
   useEffect(() => {
-    if (includeHalalCash) {
-      setHalalCashAmount(calculatedHalalCash.toFixed(2));
+    if (includeHamaliCash) {
+      setHamaliCashAmount(calculatedHamaliCash.toFixed(2));
     }
-  }, [totalKgWeight, halalCashRatePerKg, includeHalalCash, calculatedHalalCash]);
+  }, [totalKgWeight, hamaliCashRatePerKg, includeHamaliCash, calculatedHamaliCash]);
   
-  // Mutation to create halal cash payment
-  const createHalalCash = useMutation({
+  // Mutation to create hamali cash payment
+  const createHamaliCash = useMutation({
     mutationFn: async (data: { amount: number; date: string; paymentMethod: string; customerId?: string; notes?: string }) => {
-      return apiRequest("POST", "/api/halal-cash", data);
+      return apiRequest("POST", "/api/hamali-cash", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/halal-cash"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hamali-cash"] });
     },
   });
 
@@ -310,16 +310,16 @@ export default function Weighing() {
     const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
     const today = new Date().toISOString().split("T")[0];
     
-    // Create halal cash payment if enabled
-    const halalCashValue = parseFloat(halalCashAmount || "0");
-    if (includeHalalCash && halalCashValue > 0) {
+    // Create hamali cash payment if enabled
+    const hamaliCashValue = parseFloat(hamaliCashAmount || "0");
+    if (includeHamaliCash && hamaliCashValue > 0) {
       const customerName = customers.find(c => c.id === selectedCustomer)?.name || "";
-      createHalalCash.mutate({
-        amount: halalCashValue,
+      createHamaliCash.mutate({
+        amount: hamaliCashValue,
         date: today,
         paymentMethod: "cash",
         customerId: selectedCustomer,
-        notes: `Halal cash from ${customerName} - Invoice ${invoiceNumber}`,
+        notes: `Hamali cash from ${customerName} - Invoice ${invoiceNumber}`,
       });
     }
 
@@ -329,9 +329,9 @@ export default function Weighing() {
       invoiceNumber,
       date: today,
       subtotal,
-      includeHalalCharge,
-      halalChargePercent: parseFloat(halalChargePercent || "0"),
-      halalChargeAmount: halalAmount,
+      includeHamaliCharge,
+      hamaliChargePercent: parseFloat(hamaliChargePercent || "0"),
+      hamaliChargeAmount: hamaliAmount,
       grandTotal,
       items: weighingItems.map((item) => ({
         productId: item.productId,
@@ -744,53 +744,53 @@ export default function Weighing() {
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="halalCharge"
-                    checked={includeHalalCharge}
-                    onChange={(e) => setIncludeHalalCharge(e.target.checked)}
+                    id="hamaliCharge"
+                    checked={includeHamaliCharge}
+                    onChange={(e) => setIncludeHamaliCharge(e.target.checked)}
                     className="rounded"
-                    data-testid="checkbox-halal"
+                    data-testid="checkbox-hamali"
                   />
-                  <Label htmlFor="halalCharge" className="text-sm">Include Halal Charge</Label>
+                  <Label htmlFor="hamaliCharge" className="text-sm">Include Hamali Charge</Label>
                 </div>
-                {includeHalalCharge && (
+                {includeHamaliCharge && (
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
-                      value={halalChargePercent}
-                      onChange={(e) => setHalalChargePercent(e.target.value)}
+                      value={hamaliChargePercent}
+                      onChange={(e) => setHamaliChargePercent(e.target.value)}
                       className="w-20"
-                      data-testid="input-halal-percent"
+                      data-testid="input-hamali-percent"
                     />
                     <span className="text-sm text-muted-foreground">%</span>
-                    <span className="ml-auto font-mono text-sm" data-testid="text-halal-amount">
-                      {halalAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                    <span className="ml-auto font-mono text-sm" data-testid="text-hamali-amount">
+                      {hamaliAmount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Halal Cash by Hand Section */}
+              {/* Hamali Cash by Hand Section */}
               <div className="space-y-3 pt-3 border-t">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="halalCash"
-                    checked={includeHalalCash}
+                    id="hamaliCash"
+                    checked={includeHamaliCash}
                     onChange={(e) => {
-                      setIncludeHalalCash(e.target.checked);
+                      setIncludeHamaliCash(e.target.checked);
                       if (!e.target.checked) {
-                        setHalalCashAmount("");
+                        setHamaliCashAmount("");
                       }
                     }}
                     className="rounded"
-                    data-testid="checkbox-halal-cash"
+                    data-testid="checkbox-hamali-cash"
                   />
-                  <Label htmlFor="halalCash" className="text-sm flex items-center gap-1">
+                  <Label htmlFor="hamaliCash" className="text-sm flex items-center gap-1">
                     <HandCoins className="h-3 w-3" />
-                    Halal Cash by Hand
+                    Hamali Cash by Hand
                   </Label>
                 </div>
-                {includeHalalCash && (
+                {includeHamaliCash && (
                   <div className="space-y-2">
                     <div className="flex justify-between gap-2 text-sm">
                       <span className="text-muted-foreground">Total Weight:</span>
@@ -803,21 +803,21 @@ export default function Weighing() {
                       <Input
                         type="number"
                         step="0.01"
-                        value={halalCashRatePerKg}
-                        onChange={(e) => setHalalCashRatePerKg(e.target.value)}
+                        value={hamaliCashRatePerKg}
+                        onChange={(e) => setHamaliCashRatePerKg(e.target.value)}
                         className="w-20"
-                        data-testid="input-halal-rate-per-kg"
+                        data-testid="input-hamali-rate-per-kg"
                       />
                       <span className="text-sm text-muted-foreground">per KG</span>
                     </div>
                     <div className="flex justify-between gap-2 text-sm pt-1 border-t border-dashed">
-                      <span className="font-medium">Halal Cash:</span>
-                      <span className="font-mono font-semibold" data-testid="text-halal-cash-amount">
-                        {parseFloat(halalCashAmount || "0").toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                      <span className="font-medium">Hamali Cash:</span>
+                      <span className="font-mono font-semibold" data-testid="text-hamali-cash-amount">
+                        {parseFloat(hamaliCashAmount || "0").toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {totalKgWeight.toFixed(2)} KG x ₹{halalCashRatePerKg}/KG = ₹{calculatedHalalCash.toFixed(2)}
+                      {totalKgWeight.toFixed(2)} KG x ₹{hamaliCashRatePerKg}/KG = ₹{calculatedHamaliCash.toFixed(2)}
                     </p>
                   </div>
                 )}

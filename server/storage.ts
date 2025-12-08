@@ -33,8 +33,8 @@ import {
   type InsertVendorReturn,
   type VendorReturnItem,
   type InsertVendorReturnItem,
-  type HalalCashPayment,
-  type InsertHalalCashPayment,
+  type HamaliCashPayment,
+  type InsertHamaliCashPayment,
   vendors,
   customers,
   vehicles,
@@ -51,7 +51,7 @@ import {
   vehicleInventoryMovements,
   vendorReturns,
   vendorReturnItems,
-  halalCashPayments,
+  hamaliCashPayments,
   users,
 } from "@shared/schema";
 import { db } from "./db";
@@ -122,10 +122,10 @@ export interface IStorage {
   createVendorReturn(vendorReturn: InsertVendorReturn, items: InsertVendorReturnItem[]): Promise<VendorReturn>;
   getVendorReturnItems(returnId: string): Promise<VendorReturnItem[]>;
 
-  // Halal Cash Payments
-  getHalalCashPayments(): Promise<HalalCashPayment[]>;
-  createHalalCashPayment(payment: InsertHalalCashPayment): Promise<HalalCashPayment>;
-  deleteHalalCashPayment(id: string): Promise<boolean>;
+  // Hamali Cash Payments
+  getHamaliCashPayments(): Promise<HamaliCashPayment[]>;
+  createHamaliCashPayment(payment: InsertHamaliCashPayment): Promise<HamaliCashPayment>;
+  deleteHamaliCashPayment(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -327,8 +327,8 @@ export class DatabaseStorage implements IStorage {
     const [invoice] = await db.insert(invoices).values({
       ...insertInvoice,
       status: insertInvoice.status ?? "pending",
-      halalChargePercent: insertInvoice.halalChargePercent ?? 2,
-      halalChargeAmount: insertInvoice.halalChargeAmount ?? 0,
+      hamaliChargePercent: insertInvoice.hamaliChargePercent ?? 2,
+      hamaliChargeAmount: insertInvoice.hamaliChargeAmount ?? 0,
     }).returning();
 
     for (const item of items) {
@@ -619,18 +619,18 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vendorReturnItems).where(eq(vendorReturnItems.returnId, returnId));
   }
 
-  // Halal Cash Payments
-  async getHalalCashPayments(): Promise<HalalCashPayment[]> {
-    return await db.select().from(halalCashPayments);
+  // Hamali Cash Payments
+  async getHamaliCashPayments(): Promise<HamaliCashPayment[]> {
+    return await db.select().from(hamaliCashPayments);
   }
 
-  async createHalalCashPayment(insertPayment: InsertHalalCashPayment): Promise<HalalCashPayment> {
-    const [payment] = await db.insert(halalCashPayments).values(insertPayment).returning();
+  async createHamaliCashPayment(insertPayment: InsertHamaliCashPayment): Promise<HamaliCashPayment> {
+    const [payment] = await db.insert(hamaliCashPayments).values(insertPayment).returning();
     return payment;
   }
 
-  async deleteHalalCashPayment(id: string): Promise<boolean> {
-    const result = await db.delete(halalCashPayments).where(eq(halalCashPayments.id, id)).returning();
+  async deleteHamaliCashPayment(id: string): Promise<boolean> {
+    const result = await db.delete(hamaliCashPayments).where(eq(hamaliCashPayments.id, id)).returning();
     return result.length > 0;
   }
 }

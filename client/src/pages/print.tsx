@@ -224,11 +224,11 @@ export default function PrintCenter() {
                         {selectedInvoiceData.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                       </span>
                     </div>
-                    {selectedInvoiceData.includeHalalCharge && (
+                    {selectedInvoiceData.includeHamaliCharge && (
                       <div className="flex justify-between text-sm">
-                        <span>Halal Charge ({selectedInvoiceData.halalChargePercent}%)</span>
+                        <span>Hamali Charge ({selectedInvoiceData.hamaliChargePercent}%)</span>
                         <span className="font-mono">
-                          {(selectedInvoiceData.halalChargeAmount || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          {(selectedInvoiceData.hamaliChargeAmount || 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                         </span>
                       </div>
                     )}

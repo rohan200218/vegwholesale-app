@@ -12,7 +12,7 @@ Full-featured application with complete business workflow:
 - Stock management with movement history
 - Purchase orders
 - Vendor returns for defective products
-- Invoice/billing with Halal charge option
+- Invoice/billing with Hamali charge option
 - Payment tracking (vendor & customer)
 - Business reports (profit/loss, stock movements)
 - Print center for invoices and delivery challans
@@ -106,12 +106,12 @@ shared/
 - Auto-detect product unit and show appropriate input method
 - Vehicle inventory display with available quantities
 - Quick invoice generation from weighing
-- Halal charge toggle with percentage
+- Hamali charge toggle with percentage
 
 ### Billing/Invoicing
 - Create customer invoices
-- Halal charge toggle (include/exclude)
-- Configurable Halal charge percentage
+- Hamali charge toggle (include/exclude)
+- Configurable Hamali charge percentage
 - Auto-calculate totals
 - Stock deduction on invoice creation
 
@@ -125,24 +125,24 @@ shared/
 - **Date Range Filtering**: Filter all reports by from/to date
 - **View By Options**:
   - All Data: Shows complete data for date range
-  - Day-wise: Aggregated daily summary with sales, invoices, Halal breakdown
+  - Day-wise: Aggregated daily summary with sales, invoices, Hamali breakdown
   - Monthly: Aggregated monthly summary
 - **Download CSV**: Each report section has download button
   - Daily report CSV
   - Monthly report CSV
   - Invoice details CSV
-  - Halal cash payments CSV
+  - Hamali cash payments CSV
   - Stock movements CSV
 - **Summary Cards**:
   - Total Sales for filtered period
-  - Halal from Invoices with count
-  - Halal Direct Cash with count
-  - Total Halal Collected
+  - Hamali from Invoices with count
+  - Hamali Direct Cash with count
+  - Total Hamali Collected
 - **Invoice Details Tab**:
-  - Each invoice with Halal status badge (Included/Excluded)
-  - Halal percentage and amount per invoice
+  - Each invoice with Hamali status badge (Included/Excluded)
+  - Hamali percentage and amount per invoice
   - Subtotal and grand total breakdown
-- **Halal Cash Payments Tab**:
+- **Hamali Cash Payments Tab**:
   - All direct cash payments with date, amount, method
   - Customer association if any
   - Running total
@@ -221,10 +221,10 @@ shared/
 - GET /api/customer-payments
 - POST /api/customer-payments
 
-### Halal Cash Payments
-- GET /api/halal-cash
-- POST /api/halal-cash
-- DELETE /api/halal-cash/:id
+### Hamali Cash Payments
+- GET /api/hamali-cash
+- POST /api/hamali-cash
+- DELETE /api/hamali-cash/:id
 
 ### Reports
 - GET /api/reports/profit-loss
@@ -251,7 +251,7 @@ shared/
 - invoice_items - Invoice line items
 - vendor_payments - Vendor payment records
 - customer_payments - Customer payment records
-- halal_cash_payments - Direct Halal cash payments
+- hamali_cash_payments - Direct Hamali cash payments
 - company_settings - Company configuration
 - vehicle_inventory - Per-vehicle product quantities
 - vehicle_inventory_movements - Vehicle stock load/sale history

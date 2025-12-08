@@ -19,17 +19,17 @@ import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, Rotate
 import type { Product, StockMovement, Invoice, Customer } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
-type HalalSummary = {
-  invoiceHalalTotal: number;
-  directCashHalalTotal: number;
-  totalHalalCollected: number;
-  invoicesWithHalal: number;
-  invoicesWithoutHalal: number;
-  salesWithHalal: number;
-  salesWithoutHalal: number;
+type HamaliSummary = {
+  invoiceHamaliTotal: number;
+  directCashHamaliTotal: number;
+  totalHamaliCollected: number;
+  invoicesWithHamali: number;
+  invoicesWithoutHamali: number;
+  salesWithHamali: number;
+  salesWithoutHamali: number;
 };
 
-type HalalCashPayment = {
+type HamaliCashPayment = {
   id: string;
   amount: number;
   date: string;
@@ -45,9 +45,9 @@ type InvoiceDetail = {
   customerName: string;
   customerId: string;
   subtotal: number;
-  includeHalalCharge: boolean;
-  halalChargePercent: number;
-  halalChargeAmount: number;
+  includeHamaliCharge: boolean;
+  hamaliChargePercent: number;
+  hamaliChargeAmount: number;
   grandTotal: number;
 };
 
@@ -57,7 +57,7 @@ type CustomerPaymentSummary = {
   totalInvoiced: number;
   totalPaid: number;
   balance: number;
-  halalAmount: number;
+  hamaliAmount: number;
   paymentStatus: "paid" | "partial" | "unpaid";
 };
 
@@ -75,7 +75,7 @@ type ProfitLossReport = {
     margin: number;
     marginPercent: number;
   }[];
-  halalSummary?: HalalSummary;
+  hamaliSummary?: HamaliSummary;
   invoiceDetails?: InvoiceDetail[];
   customerPaymentSummary?: CustomerPaymentSummary[];
 };
@@ -86,9 +86,9 @@ type DailySummary = {
   date: string;
   sales: number;
   invoiceCount: number;
-  halalFromInvoices: number;
-  halalCash: number;
-  totalHalal: number;
+  hamaliFromInvoices: number;
+  hamaliCash: number;
+  totalHamali: number;
 };
 
 type MonthlySummary = {
@@ -96,9 +96,9 @@ type MonthlySummary = {
   monthLabel: string;
   sales: number;
   invoiceCount: number;
-  halalFromInvoices: number;
-  halalCash: number;
-  totalHalal: number;
+  hamaliFromInvoices: number;
+  hamaliCash: number;
+  totalHamali: number;
 };
 
 function formatCurrency(amount: number): string {
@@ -139,8 +139,8 @@ export default function Reports() {
     queryKey: ["/api/customers"],
   });
 
-  const { data: halalCashPayments = [] } = useQuery<HalalCashPayment[]>({
-    queryKey: ["/api/halal-cash"],
+  const { data: hamaliCashPayments = [] } = useQuery<HamaliCashPayment[]>({
+    queryKey: ["/api/hamali-cash"],
   });
 
   const { data: profitLoss, isLoading: profitLoading } = useQuery<ProfitLossReport>({
@@ -158,13 +158,13 @@ export default function Reports() {
     });
   }, [invoices, startDate, endDate]);
 
-  const filteredHalalCash = useMemo(() => {
-    return halalCashPayments.filter((payment) => {
+  const filteredHamaliCash = useMemo(() => {
+    return hamaliCashPayments.filter((payment) => {
       if (startDate && payment.date < startDate) return false;
       if (endDate && payment.date > endDate) return false;
       return true;
     });
-  }, [halalCashPayments, startDate, endDate]);
+  }, [hamaliCashPayments, startDate, endDate]);
 
   const filteredMovements = stockMovements.filter((m) => {
     if (startDate && m.date < startDate) return false;
@@ -174,23 +174,23 @@ export default function Reports() {
 
   const filteredSummary = useMemo(() => {
     const totalSales = filteredInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
-    const invoiceHalalTotal = filteredInvoices
-      .filter(inv => inv.includeHalalCharge)
-      .reduce((sum, inv) => sum + (inv.halalChargeAmount || 0), 0);
-    const directCashHalalTotal = filteredHalalCash.reduce((sum, p) => sum + p.amount, 0);
-    const invoicesWithHalal = filteredInvoices.filter(inv => inv.includeHalalCharge).length;
-    const invoicesWithoutHalal = filteredInvoices.filter(inv => !inv.includeHalalCharge).length;
+    const invoiceHamaliTotal = filteredInvoices
+      .filter(inv => inv.includeHamaliCharge)
+      .reduce((sum, inv) => sum + (inv.hamaliChargeAmount || 0), 0);
+    const directCashHamaliTotal = filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0);
+    const invoicesWithHamali = filteredInvoices.filter(inv => inv.includeHamaliCharge).length;
+    const invoicesWithoutHamali = filteredInvoices.filter(inv => !inv.includeHamaliCharge).length;
 
     return {
       totalSales,
-      invoiceHalalTotal,
-      directCashHalalTotal,
-      totalHalalCollected: invoiceHalalTotal + directCashHalalTotal,
-      invoicesWithHalal,
-      invoicesWithoutHalal,
+      invoiceHamaliTotal,
+      directCashHamaliTotal,
+      totalHamaliCollected: invoiceHamaliTotal + directCashHamaliTotal,
+      invoicesWithHamali,
+      invoicesWithoutHamali,
       invoiceCount: filteredInvoices.length,
     };
-  }, [filteredInvoices, filteredHalalCash]);
+  }, [filteredInvoices, filteredHamaliCash]);
 
   const dailySummary = useMemo((): DailySummary[] => {
     const dateMap = new Map<string, DailySummary>();
@@ -200,38 +200,38 @@ export default function Reports() {
         date: inv.date,
         sales: 0,
         invoiceCount: 0,
-        halalFromInvoices: 0,
-        halalCash: 0,
-        totalHalal: 0,
+        hamaliFromInvoices: 0,
+        hamaliCash: 0,
+        totalHamali: 0,
       };
       existing.sales += inv.grandTotal;
       existing.invoiceCount += 1;
-      if (inv.includeHalalCharge) {
-        existing.halalFromInvoices += inv.halalChargeAmount || 0;
+      if (inv.includeHamaliCharge) {
+        existing.hamaliFromInvoices += inv.hamaliChargeAmount || 0;
       }
       dateMap.set(inv.date, existing);
     });
 
-    filteredHalalCash.forEach((payment) => {
+    filteredHamaliCash.forEach((payment) => {
       const existing = dateMap.get(payment.date) || {
         date: payment.date,
         sales: 0,
         invoiceCount: 0,
-        halalFromInvoices: 0,
-        halalCash: 0,
-        totalHalal: 0,
+        hamaliFromInvoices: 0,
+        hamaliCash: 0,
+        totalHamali: 0,
       };
-      existing.halalCash += payment.amount;
+      existing.hamaliCash += payment.amount;
       dateMap.set(payment.date, existing);
     });
 
     const result = Array.from(dateMap.values()).map((day) => ({
       ...day,
-      totalHalal: day.halalFromInvoices + day.halalCash,
+      totalHamali: day.hamaliFromInvoices + day.hamaliCash,
     }));
 
     return result.sort((a, b) => b.date.localeCompare(a.date));
-  }, [filteredInvoices, filteredHalalCash]);
+  }, [filteredInvoices, filteredHamaliCash]);
 
   const monthlySummary = useMemo((): MonthlySummary[] => {
     const monthMap = new Map<string, MonthlySummary>();
@@ -244,19 +244,19 @@ export default function Reports() {
         monthLabel,
         sales: 0,
         invoiceCount: 0,
-        halalFromInvoices: 0,
-        halalCash: 0,
-        totalHalal: 0,
+        hamaliFromInvoices: 0,
+        hamaliCash: 0,
+        totalHamali: 0,
       };
       existing.sales += inv.grandTotal;
       existing.invoiceCount += 1;
-      if (inv.includeHalalCharge) {
-        existing.halalFromInvoices += inv.halalChargeAmount || 0;
+      if (inv.includeHamaliCharge) {
+        existing.hamaliFromInvoices += inv.hamaliChargeAmount || 0;
       }
       monthMap.set(month, existing);
     });
 
-    filteredHalalCash.forEach((payment) => {
+    filteredHamaliCash.forEach((payment) => {
       const month = payment.date.substring(0, 7);
       const monthLabel = new Date(payment.date).toLocaleDateString("en-IN", { year: "numeric", month: "long" });
       const existing = monthMap.get(month) || {
@@ -264,21 +264,21 @@ export default function Reports() {
         monthLabel,
         sales: 0,
         invoiceCount: 0,
-        halalFromInvoices: 0,
-        halalCash: 0,
-        totalHalal: 0,
+        hamaliFromInvoices: 0,
+        hamaliCash: 0,
+        totalHamali: 0,
       };
-      existing.halalCash += payment.amount;
+      existing.hamaliCash += payment.amount;
       monthMap.set(month, existing);
     });
 
     const result = Array.from(monthMap.values()).map((m) => ({
       ...m,
-      totalHalal: m.halalFromInvoices + m.halalCash,
+      totalHamali: m.hamaliFromInvoices + m.hamaliCash,
     }));
 
     return result.sort((a, b) => b.month.localeCompare(a.month));
-  }, [filteredInvoices, filteredHalalCash]);
+  }, [filteredInvoices, filteredHamaliCash]);
 
   const stockInTotal = filteredMovements.filter((m) => m.type === "in").reduce((sum, m) => sum + m.quantity, 0);
   const stockOutTotal = filteredMovements.filter((m) => m.type === "out").reduce((sum, m) => sum + m.quantity, 0);
@@ -286,73 +286,73 @@ export default function Reports() {
   const lowStockProducts = products.filter((p) => p.currentStock <= (p.reorderLevel || 10));
 
   const downloadDailyReport = () => {
-    const headers = ["Date", "Sales", "Invoices", "Halal (Invoice)", "Halal (Cash)", "Total Halal"];
+    const headers = ["Date", "Sales", "Invoices", "Hamali (Invoice)", "Hamali (Cash)", "Total Hamali"];
     const rows = dailySummary.map((day) => [
       day.date,
       day.sales.toFixed(2),
       day.invoiceCount.toString(),
-      day.halalFromInvoices.toFixed(2),
-      day.halalCash.toFixed(2),
-      day.totalHalal.toFixed(2),
+      day.hamaliFromInvoices.toFixed(2),
+      day.hamaliCash.toFixed(2),
+      day.totalHamali.toFixed(2),
     ]);
     const totals = [
       "TOTAL",
       dailySummary.reduce((sum, d) => sum + d.sales, 0).toFixed(2),
       dailySummary.reduce((sum, d) => sum + d.invoiceCount, 0).toString(),
-      dailySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0).toFixed(2),
-      dailySummary.reduce((sum, d) => sum + d.halalCash, 0).toFixed(2),
-      dailySummary.reduce((sum, d) => sum + d.totalHalal, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.hamaliCash, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.totalHamali, 0).toFixed(2),
     ];
     downloadCSV([headers, ...rows, totals], `daily-report-${startDate}-to-${endDate}.csv`);
   };
 
   const downloadMonthlyReport = () => {
-    const headers = ["Month", "Sales", "Invoices", "Halal (Invoice)", "Halal (Cash)", "Total Halal"];
+    const headers = ["Month", "Sales", "Invoices", "Hamali (Invoice)", "Hamali (Cash)", "Total Hamali"];
     const rows = monthlySummary.map((m) => [
       m.monthLabel,
       m.sales.toFixed(2),
       m.invoiceCount.toString(),
-      m.halalFromInvoices.toFixed(2),
-      m.halalCash.toFixed(2),
-      m.totalHalal.toFixed(2),
+      m.hamaliFromInvoices.toFixed(2),
+      m.hamaliCash.toFixed(2),
+      m.totalHamali.toFixed(2),
     ]);
     const totals = [
       "TOTAL",
       monthlySummary.reduce((sum, d) => sum + d.sales, 0).toFixed(2),
       monthlySummary.reduce((sum, d) => sum + d.invoiceCount, 0).toString(),
-      monthlySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0).toFixed(2),
-      monthlySummary.reduce((sum, d) => sum + d.halalCash, 0).toFixed(2),
-      monthlySummary.reduce((sum, d) => sum + d.totalHalal, 0).toFixed(2),
+      monthlySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0).toFixed(2),
+      monthlySummary.reduce((sum, d) => sum + d.hamaliCash, 0).toFixed(2),
+      monthlySummary.reduce((sum, d) => sum + d.totalHamali, 0).toFixed(2),
     ];
     downloadCSV([headers, ...rows, totals], `monthly-report-${startDate}-to-${endDate}.csv`);
   };
 
   const downloadInvoiceReport = () => {
-    const headers = ["Invoice #", "Date", "Customer", "Subtotal", "Halal Included", "Halal %", "Halal Amount", "Grand Total"];
+    const headers = ["Invoice #", "Date", "Customer", "Subtotal", "Hamali Included", "Hamali %", "Hamali Amount", "Grand Total"];
     const rows = filteredInvoices.map((inv) => [
       inv.invoiceNumber,
       inv.date,
       getCustomerName(inv.customerId),
       inv.subtotal.toFixed(2),
-      inv.includeHalalCharge ? "Yes" : "No",
-      inv.includeHalalCharge ? `${inv.halalChargePercent}%` : "-",
-      inv.includeHalalCharge ? (inv.halalChargeAmount || 0).toFixed(2) : "0",
+      inv.includeHamaliCharge ? "Yes" : "No",
+      inv.includeHamaliCharge ? `${inv.hamaliChargePercent}%` : "-",
+      inv.includeHamaliCharge ? (inv.hamaliChargeAmount || 0).toFixed(2) : "0",
       inv.grandTotal.toFixed(2),
     ]);
     downloadCSV([headers, ...rows], `invoice-report-${startDate}-to-${endDate}.csv`);
   };
 
-  const downloadHalalCashReport = () => {
+  const downloadHamaliCashReport = () => {
     const headers = ["Date", "Amount", "Payment Method", "Customer", "Notes"];
-    const rows = filteredHalalCash.map((payment) => [
+    const rows = filteredHamaliCash.map((payment) => [
       payment.date,
       payment.amount.toFixed(2),
       payment.paymentMethod,
       payment.customerId ? getCustomerName(payment.customerId) : "-",
       payment.notes || "-",
     ]);
-    const totals = ["TOTAL", filteredHalalCash.reduce((sum, p) => sum + p.amount, 0).toFixed(2), "", "", ""];
-    downloadCSV([headers, ...rows, totals], `halal-cash-report-${startDate}-to-${endDate}.csv`);
+    const totals = ["TOTAL", filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0).toFixed(2), "", "", ""];
+    downloadCSV([headers, ...rows, totals], `hamali-cash-report-${startDate}-to-${endDate}.csv`);
   };
 
   const downloadStockReport = () => {
@@ -466,43 +466,43 @@ export default function Reports() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Halal (Invoices)
+              Hamali (Invoices)
             </CardTitle>
             <Receipt className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-halal-invoices">
-              {formatCurrency(filteredSummary.invoiceHalalTotal)}
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-invoices">
+              {formatCurrency(filteredSummary.invoiceHamaliTotal)}
             </div>
-            <p className="text-xs text-muted-foreground">{filteredSummary.invoicesWithHalal} invoices</p>
+            <p className="text-xs text-muted-foreground">{filteredSummary.invoicesWithHamali} invoices</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Halal (Direct Cash)
+              Hamali (Direct Cash)
             </CardTitle>
             <CreditCard className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-halal-cash">
-              {formatCurrency(filteredSummary.directCashHalalTotal)}
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-cash">
+              {formatCurrency(filteredSummary.directCashHamaliTotal)}
             </div>
-            <p className="text-xs text-muted-foreground">{filteredHalalCash.length} payments</p>
+            <p className="text-xs text-muted-foreground">{filteredHamaliCash.length} payments</p>
           </CardContent>
         </Card>
 
         <Card className="border-primary/30 bg-primary/5">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-primary">
-              Total Halal Collected
+              Total Hamali Collected
             </CardTitle>
             <TrendingUp className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-filtered-total-halal">
-              {formatCurrency(filteredSummary.totalHalalCollected)}
+            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-filtered-total-hamali">
+              {formatCurrency(filteredSummary.totalHamaliCollected)}
             </div>
             <p className="text-xs text-muted-foreground">Invoice + Direct Cash</p>
           </CardContent>
@@ -528,9 +528,9 @@ export default function Reports() {
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Sales</TableHead>
                   <TableHead className="text-right">Invoices</TableHead>
-                  <TableHead className="text-right">Halal (Invoice)</TableHead>
-                  <TableHead className="text-right">Halal (Cash)</TableHead>
-                  <TableHead className="text-right">Total Halal</TableHead>
+                  <TableHead className="text-right">Hamali (Invoice)</TableHead>
+                  <TableHead className="text-right">Hamali (Cash)</TableHead>
+                  <TableHead className="text-right">Total Hamali</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -547,18 +547,18 @@ export default function Reports() {
                         <TableCell className="font-medium">{day.date}</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(day.sales)}</TableCell>
                         <TableCell className="text-right">{day.invoiceCount}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(day.halalFromInvoices)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(day.halalCash)}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(day.totalHalal)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(day.hamaliFromInvoices)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(day.hamaliCash)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(day.totalHamali)}</TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="bg-muted/50 font-bold">
                       <TableCell>TOTAL</TableCell>
                       <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.sales, 0))}</TableCell>
                       <TableCell className="text-right">{dailySummary.reduce((sum, d) => sum + d.invoiceCount, 0)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0))}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.halalCash, 0))}</TableCell>
-                      <TableCell className="text-right font-mono text-primary">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.totalHalal, 0))}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0))}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.hamaliCash, 0))}</TableCell>
+                      <TableCell className="text-right font-mono text-primary">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.totalHamali, 0))}</TableCell>
                     </TableRow>
                   </>
                 )}
@@ -587,9 +587,9 @@ export default function Reports() {
                   <TableHead>Month</TableHead>
                   <TableHead className="text-right">Sales</TableHead>
                   <TableHead className="text-right">Invoices</TableHead>
-                  <TableHead className="text-right">Halal (Invoice)</TableHead>
-                  <TableHead className="text-right">Halal (Cash)</TableHead>
-                  <TableHead className="text-right">Total Halal</TableHead>
+                  <TableHead className="text-right">Hamali (Invoice)</TableHead>
+                  <TableHead className="text-right">Hamali (Cash)</TableHead>
+                  <TableHead className="text-right">Total Hamali</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -606,18 +606,18 @@ export default function Reports() {
                         <TableCell className="font-medium">{m.monthLabel}</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(m.sales)}</TableCell>
                         <TableCell className="text-right">{m.invoiceCount}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(m.halalFromInvoices)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(m.halalCash)}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(m.totalHalal)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(m.hamaliFromInvoices)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(m.hamaliCash)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(m.totalHamali)}</TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="bg-muted/50 font-bold">
                       <TableCell>TOTAL</TableCell>
                       <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.sales, 0))}</TableCell>
                       <TableCell className="text-right">{monthlySummary.reduce((sum, d) => sum + d.invoiceCount, 0)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.halalFromInvoices, 0))}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.halalCash, 0))}</TableCell>
-                      <TableCell className="text-right font-mono text-primary">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.totalHalal, 0))}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0))}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.hamaliCash, 0))}</TableCell>
+                      <TableCell className="text-right font-mono text-primary">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.totalHamali, 0))}</TableCell>
                     </TableRow>
                   </>
                 )}
@@ -633,9 +633,9 @@ export default function Reports() {
             <Receipt className="h-4 w-4 mr-1" />
             Invoice Details
           </TabsTrigger>
-          <TabsTrigger value="halal-cash" data-testid="tab-halal-cash">
+          <TabsTrigger value="hamali-cash" data-testid="tab-hamali-cash">
             <CreditCard className="h-4 w-4 mr-1" />
-            Halal Cash Payments
+            Hamali Cash Payments
           </TabsTrigger>
           <TabsTrigger value="profit" data-testid="tab-profit">Profit Margins</TabsTrigger>
           <TabsTrigger value="stock" data-testid="tab-stock">Stock Movements</TabsTrigger>
@@ -659,9 +659,9 @@ export default function Reports() {
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead className="text-right">Subtotal</TableHead>
-                    <TableHead className="text-center">Halal Status</TableHead>
-                    <TableHead className="text-right">Halal %</TableHead>
-                    <TableHead className="text-right">Halal Amount</TableHead>
+                    <TableHead className="text-center">Hamali Status</TableHead>
+                    <TableHead className="text-right">Hamali %</TableHead>
+                    <TableHead className="text-right">Hamali Amount</TableHead>
                     <TableHead className="text-right">Grand Total</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -682,7 +682,7 @@ export default function Reports() {
                           {formatCurrency(invoice.subtotal)}
                         </TableCell>
                         <TableCell className="text-center">
-                          {invoice.includeHalalCharge ? (
+                          {invoice.includeHamaliCharge ? (
                             <Badge variant="default" className="gap-1">
                               <CircleCheck className="h-3 w-3" />
                               Included
@@ -695,11 +695,11 @@ export default function Reports() {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {invoice.includeHalalCharge ? `${invoice.halalChargePercent}%` : "-"}
+                          {invoice.includeHamaliCharge ? `${invoice.hamaliChargePercent}%` : "-"}
                         </TableCell>
                         <TableCell className="text-right font-mono text-primary font-semibold">
-                          {invoice.includeHalalCharge 
-                            ? formatCurrency(invoice.halalChargeAmount || 0)
+                          {invoice.includeHamaliCharge 
+                            ? formatCurrency(invoice.hamaliChargeAmount || 0)
                             : "-"
                           }
                         </TableCell>
@@ -715,11 +715,11 @@ export default function Reports() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="halal-cash" className="space-y-4">
+        <TabsContent value="hamali-cash" className="space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle>Direct Halal Cash Payments ({filteredHalalCash.length})</CardTitle>
-              <Button variant="outline" size="sm" onClick={downloadHalalCashReport} data-testid="button-download-halal-cash">
+              <CardTitle>Direct Hamali Cash Payments ({filteredHamaliCash.length})</CardTitle>
+              <Button variant="outline" size="sm" onClick={downloadHamaliCashReport} data-testid="button-download-hamali-cash">
                 <Download className="h-4 w-4 mr-1" />
                 Download CSV
               </Button>
@@ -736,16 +736,16 @@ export default function Reports() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredHalalCash.length === 0 ? (
+                  {filteredHamaliCash.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No direct halal cash payments for selected date range
+                        No direct hamali cash payments for selected date range
                       </TableCell>
                     </TableRow>
                   ) : (
                     <>
-                      {filteredHalalCash.map((payment) => (
-                        <TableRow key={payment.id} data-testid={`row-halal-cash-${payment.id}`}>
+                      {filteredHamaliCash.map((payment) => (
+                        <TableRow key={payment.id} data-testid={`row-hamali-cash-${payment.id}`}>
                           <TableCell>{payment.date}</TableCell>
                           <TableCell className="text-right font-mono font-semibold text-primary">
                             {formatCurrency(payment.amount)}
@@ -762,7 +762,7 @@ export default function Reports() {
                       <TableRow className="bg-muted/50 font-bold">
                         <TableCell>TOTAL</TableCell>
                         <TableCell className="text-right font-mono text-primary">
-                          {formatCurrency(filteredHalalCash.reduce((sum, p) => sum + p.amount, 0))}
+                          {formatCurrency(filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0))}
                         </TableCell>
                         <TableCell colSpan={3}></TableCell>
                       </TableRow>
