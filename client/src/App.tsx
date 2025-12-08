@@ -19,6 +19,7 @@ import Payments from "@/pages/payments";
 import Reports from "@/pages/reports";
 import PrintCenter from "@/pages/print";
 import Settings from "@/pages/settings";
+import Weighing from "@/pages/weighing";
 
 function Router() {
   return (
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/stock" component={Stock} />
       <Route path="/purchases" component={Purchases} />
       <Route path="/billing" component={Billing} />
+      <Route path="/weighing" component={Weighing} />
       <Route path="/payments" component={Payments} />
       <Route path="/reports" component={Reports} />
       <Route path="/print" component={PrintCenter} />

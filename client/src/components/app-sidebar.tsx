@@ -25,6 +25,7 @@ import {
   BarChart3,
   FileText,
   Settings,
+  Scale,
 } from "lucide-react";
 
 const navigationItems = [
@@ -65,6 +66,11 @@ const transactionItems = [
     title: "Purchases",
     url: "/purchases",
     icon: ShoppingCart,
+  },
+  {
+    title: "Weighing",
+    url: "/weighing",
+    icon: Scale,
   },
   {
     title: "Billing",

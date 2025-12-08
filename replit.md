@@ -88,6 +88,13 @@ shared/
 - Add multiple line items
 - Auto-update stock on creation
 
+### Weighing Station
+- Select truck/vehicle and customer
+- Weigh products from the scale
+- Add multiple items with actual weights
+- Quick invoice generation from weighing
+- Halal charge toggle with percentage
+
 ### Billing/Invoicing
 - Create customer invoices
 - Halal charge toggle (include/exclude)
