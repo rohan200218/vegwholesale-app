@@ -117,6 +117,7 @@ export default function VendorReturns() {
     mutationFn: async (data: ReturnFormData & { items: ReturnLineItem[] }) => {
       return apiRequest("POST", "/api/vendor-returns", {
         ...data,
+        vehicleId: data.vehicleId === "none" ? undefined : data.vehicleId,
         totalAmount: data.items.reduce((acc, item) => acc + item.total, 0),
         items: data.items.map((item) => ({
           productId: item.productId,
@@ -360,7 +361,7 @@ export default function VendorReturns() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {vehicles.map((vehicle) => (
                             <SelectItem key={vehicle.id} value={vehicle.id}>
                               {vehicle.number} - {vehicle.driverName}
