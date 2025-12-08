@@ -132,6 +132,20 @@ export default function Stock() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 10);
 
+  // Calculate entry stock (total stock received) per product
+  const getEntryStock = (productId: string) => {
+    return movements
+      .filter((m) => m.productId === productId && m.type === "in")
+      .reduce((sum, m) => sum + m.quantity, 0);
+  };
+
+  // Calculate sold/out stock per product
+  const getSoldStock = (productId: string) => {
+    return movements
+      .filter((m) => m.productId === productId && m.type === "out")
+      .reduce((sum, m) => sum + m.quantity, 0);
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -236,7 +250,9 @@ export default function Stock() {
                   <TableRow>
                     <TableHead>Product</TableHead>
                     <TableHead>Unit</TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead className="text-right">Entry Stock</TableHead>
+                    <TableHead className="text-right">Sold</TableHead>
+                    <TableHead className="text-right">Available</TableHead>
                     <TableHead className="text-right">Value</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -247,6 +263,8 @@ export default function Stock() {
                     const isLowStock =
                       product.currentStock <= (product.reorderLevel || 10);
                     const stockValue = product.currentStock * product.purchasePrice;
+                    const entryStock = getEntryStock(product.id);
+                    const soldStock = getSoldStock(product.id);
 
                     return (
                       <TableRow key={product.id} data-testid={`row-stock-${product.id}`}>
@@ -258,7 +276,13 @@ export default function Stock() {
                             {product.unit}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-mono">
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          {entryStock.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">
+                          {soldStock.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
                           {product.currentStock.toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right font-mono">
