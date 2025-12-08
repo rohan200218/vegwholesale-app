@@ -5,7 +5,6 @@ A comprehensive business management system for vegetable wholesale operations. T
 
 ## Current State
 Full-featured application with complete business workflow:
-- **User Authentication** via Replit Auth (Google, GitHub, email/password)
 - Vendor management with payment tracking
 - Customer management with receivables tracking
 - Vehicle tracking
@@ -269,11 +268,6 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
-- December 8, 2025: Added user authentication via Replit Auth
-  - Login page with "Sign in with Replit" button
-  - Session management with PostgreSQL-backed sessions
-  - User menu with profile avatar and logout option
-  - Protected routes requiring authentication
 - December 8, 2025: Added vendor returns feature
   - Return defective products to vendors with reason tracking
   - Automatically deducts stock and credits vendor balance
