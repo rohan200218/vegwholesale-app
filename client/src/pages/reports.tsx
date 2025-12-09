@@ -178,7 +178,8 @@ export default function Reports() {
   });
 
   const filteredSummary = useMemo(() => {
-    const totalSales = filteredInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+    const totalSalesWithHamali = filteredInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+    const totalSubtotal = filteredInvoices.reduce((sum, inv) => sum + inv.subtotal, 0);
     const invoiceHamaliTotal = filteredInvoices
       .filter(inv => inv.includeHamaliCharge)
       .reduce((sum, inv) => sum + (inv.hamaliChargeAmount || 0), 0);
@@ -187,7 +188,8 @@ export default function Reports() {
     const invoicesWithoutHamali = filteredInvoices.filter(inv => !inv.includeHamaliCharge).length;
 
     return {
-      totalSales,
+      totalSalesWithHamali,
+      totalSubtotal,
       invoiceHamaliTotal,
       directCashHamaliTotal,
       totalHamaliCollected: invoiceHamaliTotal + directCashHamaliTotal,
@@ -456,64 +458,96 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Sales
+              Product Sales (Subtotal)
             </CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-primary" />
+            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-sales">
-              {formatCurrency(filteredSummary.totalSales)}
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-subtotal">
+              {formatCurrency(filteredSummary.totalSubtotal)}
             </div>
-            <p className="text-xs text-muted-foreground">{filteredSummary.invoiceCount} invoices</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Hamali (Invoices)
-            </CardTitle>
-            <Receipt className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-invoices">
-              {formatCurrency(filteredSummary.invoiceHamaliTotal)}
-            </div>
-            <p className="text-xs text-muted-foreground">{filteredSummary.invoicesWithHamali} invoices</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Hamali (Direct Cash)
-            </CardTitle>
-            <CreditCard className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-cash">
-              {formatCurrency(filteredSummary.directCashHamaliTotal)}
-            </div>
-            <p className="text-xs text-muted-foreground">{filteredHamaliCash.length} payments</p>
+            <p className="text-xs text-muted-foreground">Without Hamali</p>
           </CardContent>
         </Card>
 
         <Card className="border-primary/30 bg-primary/5">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-primary">
-              Total Hamali Collected
+              Total Sales (Grand Total)
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-primary" />
+            <ArrowUpRight className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-filtered-total-hamali">
+            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-filtered-sales">
+              {formatCurrency(filteredSummary.totalSalesWithHamali)}
+            </div>
+            <p className="text-xs text-muted-foreground">{filteredSummary.invoiceCount} invoices (with Hamali)</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Hamali in Bills
+            </CardTitle>
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-invoices">
+              {formatCurrency(filteredSummary.invoiceHamaliTotal)}
+            </div>
+            <p className="text-xs text-muted-foreground">{filteredSummary.invoicesWithHamali} invoices included</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Hamali Direct Cash
+            </CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-cash">
+              {formatCurrency(filteredSummary.directCashHamaliTotal)}
+            </div>
+            <p className="text-xs text-muted-foreground">{filteredHamaliCash.length} cash payments</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Hamali Collected
+            </CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-total-hamali">
               {formatCurrency(filteredSummary.totalHamaliCollected)}
             </div>
-            <p className="text-xs text-muted-foreground">Invoice + Direct Cash</p>
+            <p className="text-xs text-muted-foreground">Bills + Direct Cash</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Invoice Count
+            </CardTitle>
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono" data-testid="text-invoice-count">
+              {filteredSummary.invoiceCount}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {filteredSummary.invoicesWithHamali} with / {filteredSummary.invoicesWithoutHamali} without Hamali
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -682,41 +716,59 @@ export default function Reports() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredInvoices.map((invoice) => (
-                      <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
-                        <TableCell className="font-medium font-mono">{invoice.invoiceNumber}</TableCell>
-                        <TableCell>{invoice.date}</TableCell>
-                        <TableCell>{getCustomerName(invoice.customerId)}</TableCell>
+                    <>
+                      {filteredInvoices.map((invoice) => (
+                        <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
+                          <TableCell className="font-medium font-mono">{invoice.invoiceNumber}</TableCell>
+                          <TableCell>{invoice.date}</TableCell>
+                          <TableCell>{getCustomerName(invoice.customerId)}</TableCell>
+                          <TableCell className="text-right font-mono">
+                            {formatCurrency(invoice.subtotal)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {invoice.includeHamaliCharge ? (
+                              <Badge variant="default" className="gap-1">
+                                <CircleCheck className="h-3 w-3" />
+                                Included
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="gap-1">
+                                <CircleX className="h-3 w-3" />
+                                Excluded
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            {invoice.includeHamaliCharge ? `${invoice.hamaliRatePerKg}/KG` : "-"}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-primary font-semibold">
+                            {invoice.includeHamaliCharge 
+                              ? formatCurrency(invoice.hamaliChargeAmount || 0)
+                              : "-"
+                            }
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold">
+                            {formatCurrency(invoice.grandTotal)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-muted/50 font-bold border-t-2">
+                        <TableCell colSpan={3}>TOTALS</TableCell>
                         <TableCell className="text-right font-mono">
-                          {formatCurrency(invoice.subtotal)}
+                          {formatCurrency(filteredSummary.totalSubtotal)}
                         </TableCell>
                         <TableCell className="text-center">
-                          {invoice.includeHamaliCharge ? (
-                            <Badge variant="default" className="gap-1">
-                              <CircleCheck className="h-3 w-3" />
-                              Included
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="gap-1">
-                              <CircleX className="h-3 w-3" />
-                              Excluded
-                            </Badge>
-                          )}
+                          <span className="text-xs">{filteredSummary.invoicesWithHamali} included</span>
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {invoice.includeHamaliCharge ? `${invoice.hamaliRatePerKg}/KG` : "-"}
+                        <TableCell className="text-right">-</TableCell>
+                        <TableCell className="text-right font-mono text-primary">
+                          {formatCurrency(filteredSummary.invoiceHamaliTotal)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-primary font-semibold">
-                          {invoice.includeHamaliCharge 
-                            ? formatCurrency(invoice.hamaliChargeAmount || 0)
-                            : "-"
-                          }
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-semibold">
-                          {formatCurrency(invoice.grandTotal)}
+                        <TableCell className="text-right font-mono text-primary">
+                          {formatCurrency(filteredSummary.totalSalesWithHamali)}
                         </TableCell>
                       </TableRow>
-                    ))
+                    </>
                   )}
                 </TableBody>
               </Table>
