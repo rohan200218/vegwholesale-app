@@ -7,6 +7,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import NotFound from "@/pages/not-found";
+import Sell from "@/pages/sell";
 import Dashboard from "@/pages/dashboard";
 import Vendors from "@/pages/vendors";
 import Customers from "@/pages/customers";
@@ -25,6 +26,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/sell" component={Sell} />
       <Route path="/vendors" component={Vendors} />
       <Route path="/customers" component={Customers} />
       <Route path="/vehicles" component={Vehicles} />

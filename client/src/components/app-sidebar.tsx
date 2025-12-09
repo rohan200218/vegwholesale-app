@@ -26,9 +26,15 @@ import {
   Settings,
   Scale,
   RotateCcw,
+  ShoppingBag,
 } from "lucide-react";
 
 const navigationItems = [
+  {
+    title: "Sell",
+    url: "/sell",
+    icon: ShoppingBag,
+  },
   {
     title: "Dashboard",
     url: "/",
