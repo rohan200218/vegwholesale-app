@@ -173,6 +173,13 @@ shared/
 - **Stock Movements Tab**: In/out movements with reason
 - **Low Stock Alerts Tab**: Products below reorder level
 
+### Sell Page (Fleet View)
+- Vehicle cards showing truck icon, vehicle number, and type
+- Products loaded per vehicle with quantities from vehicle_inventory
+- Badge showing item count or "Empty" status
+- Plus button card to add new vehicles with dialog form
+- Click vehicle card to navigate to weighing station with vehicle pre-selected
+
 ### Dashboard
 - Quick action buttons for common tasks
 - Key metrics cards (vendors, customers, products, invoices)
@@ -299,6 +306,12 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 9, 2025: Added Sell page (vehicle fleet view)
+  - Displays all vehicles as cards with truck icons
+  - Shows vehicle number, type, and loaded products with quantities
+  - Plus button to add new vehicles with dialog form
+  - Click vehicle to navigate to weighing station for selling
+  - Added as first item in sidebar navigation
 - December 9, 2025: Added comprehensive graphical analytics
   - Dashboard: 7-day sales trend area chart, stock value distribution bar chart
   - Reports Analytics tab: Daily sales trend, revenue breakdown, Hamali collection, stock flow, profit margins charts
