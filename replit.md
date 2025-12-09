@@ -45,3 +45,13 @@ The application is built with a modern web stack:
 -   **Express.js**: Backend web framework.
 -   **Web Serial API**: For direct integration with USB/Serial weighing scales (browser-specific).
 -   **Recharts**: Charting library for data visualization in reports and dashboard.
+
+## Recent Changes
+- December 9, 2025: Multi-vehicle selection on Sell page
+  - Select multiple vehicles simultaneously (click to toggle selection)
+  - Each selected vehicle shows independent Customer Sale form (VehicleSalePane component)
+  - Vehicle cards show "Selected" badge with check icon when active
+  - Sale panes render in responsive 2-column grid
+  - "Clear All" button to deselect all vehicles at once
+  - Each sale has independent state: products, customer, hamali rate
+  - Creating sale on one vehicle doesn't affect others
