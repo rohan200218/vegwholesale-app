@@ -142,17 +142,25 @@ shared/
   - All Data: Shows complete data for date range
   - Day-wise: Aggregated daily summary with sales, invoices, Hamali breakdown
   - Monthly: Aggregated monthly summary
-- **Download CSV**: Each report section has download button
+- **Download CSV**: Each report section has download button with TOTALS row
   - Daily report CSV
   - Monthly report CSV
-  - Invoice details CSV
+  - Invoice details CSV (includes subtotal, Hamali, grand total)
   - Hamali cash payments CSV
   - Stock movements CSV
 - **Summary Cards**:
-  - Total Sales for filtered period
+  - Product Sales (Subtotal) for filtered period
+  - Total Sales (Grand Total) including Hamali
   - Hamali from Invoices with count
   - Hamali Direct Cash with count
   - Total Hamali Collected
+- **Analytics Tab** (default): Graphical charts for business insights
+  - Daily Sales & Hamali Trend (ComposedChart with bars and line)
+  - Revenue Breakdown pie chart (Product Sales vs Hamali)
+  - Hamali Collection pie chart (Bills vs Direct Cash)
+  - Stock Value Distribution pie chart
+  - Stock Flow bar chart (In vs Out movements)
+  - Product Profit Margins bar chart
 - **Invoice Details Tab**:
   - Each invoice with Hamali status badge (Included/Excluded)
   - Hamali percentage and amount per invoice
@@ -164,6 +172,14 @@ shared/
 - **Profit Margins Tab**: Product-wise margin analysis
 - **Stock Movements Tab**: In/out movements with reason
 - **Low Stock Alerts Tab**: Products below reorder level
+
+### Dashboard
+- Quick action buttons for common tasks
+- Key metrics cards (vendors, customers, products, invoices)
+- Outstanding balances summary
+- **7-Day Sales Trend**: Area chart showing sales over last 7 days
+- **Stock Value by Product**: Horizontal bar chart showing top products by stock value
+- Low stock alerts
 
 ### Print Center
 - Generate tax invoices
@@ -283,6 +299,13 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 9, 2025: Added comprehensive graphical analytics
+  - Dashboard: 7-day sales trend area chart, stock value distribution bar chart
+  - Reports Analytics tab: Daily sales trend, revenue breakdown, Hamali collection, stock flow, profit margins charts
+  - All charts use Recharts with Carbon Design System color tokens for theme consistency
+  - Fixed chart memoization for proper date filter synchronization
+  - Optimized dashboard sales aggregation to O(n) single-pass algorithm
+  - CSV exports now include TOTALS row with subtotal, Hamali, and grand total
 - December 9, 2025: Added weighing machine integration using Web Serial API
   - Connect USB/Serial scales directly from Chrome/Edge browsers
   - Configurable settings: baud rate, data bits, parity (saved to localStorage)
