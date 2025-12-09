@@ -146,6 +146,7 @@ function VehicleSalePane({
   }, [draft.products]);
 
   const createSaleMutation = useMutation({
+    mutationKey: ['/api/invoices', 'create', vehicle.id],
     mutationFn: async () => {
       if (draft.products.length === 0) {
         throw new Error("Please select products to sell");
@@ -691,30 +692,36 @@ export default function Sell() {
   }, [totalWeight, form]);
 
   const handleVehicleSelect = useCallback((vehicleId: string) => {
-    setSelectedVehicleIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(vehicleId)) {
+    const isCurrentlySelected = selectedVehicleIds.has(vehicleId);
+    
+    if (isCurrentlySelected) {
+      setSelectedVehicleIds(prev => {
+        const newSet = new Set(prev);
         newSet.delete(vehicleId);
-        setSaleDrafts(prevDrafts => {
-          const newDrafts = { ...prevDrafts };
-          delete newDrafts[vehicleId];
-          return newDrafts;
-        });
-      } else {
+        return newSet;
+      });
+      setSaleDrafts(prevDrafts => {
+        const newDrafts = { ...prevDrafts };
+        delete newDrafts[vehicleId];
+        return newDrafts;
+      });
+    } else {
+      setSelectedVehicleIds(prev => {
+        const newSet = new Set(prev);
         newSet.add(vehicleId);
-        setSaleDrafts(prevDrafts => ({
-          ...prevDrafts,
-          [vehicleId]: {
-            products: [],
-            customerName: "",
-            selectedCustomerId: "",
-            hamaliRate: 12,
-          },
-        }));
-      }
-      return newSet;
-    });
-  }, []);
+        return newSet;
+      });
+      setSaleDrafts(prevDrafts => ({
+        ...prevDrafts,
+        [vehicleId]: {
+          products: [],
+          customerName: "",
+          selectedCustomerId: "",
+          hamaliRate: 12,
+        },
+      }));
+    }
+  }, [selectedVehicleIds]);
 
   const handleUpdateDraft = useCallback((vehicleId: string, draft: SaleDraft) => {
     setSaleDrafts(prev => ({
