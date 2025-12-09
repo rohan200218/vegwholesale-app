@@ -15,9 +15,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw, CircleCheck, CircleX, Receipt, CreditCard, Users, Download, Calendar, Filter } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw, CircleCheck, CircleX, Receipt, CreditCard, Users, Download, Calendar, Filter, BarChart3 } from "lucide-react";
 import type { Product, StockMovement, Invoice, Customer } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  LineChart,
+  Line,
+  ComposedChart,
+  Area,
+} from "recharts";
 
 type HamaliSummary = {
   invoiceHamaliTotal: number;
@@ -291,6 +307,76 @@ export default function Reports() {
   const stockOutTotal = filteredMovements.filter((m) => m.type === "out").reduce((sum, m) => sum + m.quantity, 0);
 
   const lowStockProducts = products.filter((p) => p.currentStock <= (p.reorderLevel || 10));
+
+  // Chart colors
+  const CHART_COLORS = [
+    "hsl(var(--chart-1))",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--chart-5))",
+  ];
+
+  // Chart data: Daily sales trend (bar chart) - depends on dailySummary which already depends on filteredInvoices/filteredHamaliCash
+  const dailySalesChartData = useMemo(() => {
+    return [...dailySummary].reverse().slice(-14).map((day) => ({
+      date: new Date(day.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+      sales: day.sales,
+      hamali: day.totalHamali,
+    }));
+  }, [dailySummary, startDate, endDate]);
+
+  // Chart data: Hamali breakdown (pie chart) - depends on filteredSummary which includes date filtering
+  const hamaliBreakdownData = useMemo(() => {
+    return [
+      { name: "Hamali in Bills", value: filteredSummary.invoiceHamaliTotal },
+      { name: "Hamali Direct Cash", value: filteredSummary.directCashHamaliTotal },
+    ].filter((d) => d.value > 0);
+  }, [filteredSummary, startDate, endDate]);
+
+  // Chart data: Stock distribution by product (pie chart)
+  const stockDistributionData = useMemo(() => {
+    return products
+      .filter((p) => p.currentStock > 0)
+      .map((p) => ({
+        name: p.name,
+        value: p.currentStock * p.purchasePrice,
+        stock: p.currentStock,
+        unit: p.unit,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [products]);
+
+  // Chart data: Invoice vs Hamali breakdown - depends on filteredSummary which includes date filtering
+  const invoiceBreakdownData = useMemo(() => {
+    return [
+      { name: "Product Sales", value: filteredSummary.totalSubtotal },
+      { name: "Hamali Collected", value: filteredSummary.totalHamaliCollected },
+    ].filter((d) => d.value > 0);
+  }, [filteredSummary, startDate, endDate]);
+
+  // Chart data: Stock in vs out - depends on stock totals which come from filteredMovements
+  const stockFlowData = useMemo(() => {
+    return [
+      { name: "Stock In", value: stockInTotal },
+      { name: "Stock Out", value: stockOutTotal },
+    ];
+  }, [stockInTotal, stockOutTotal, startDate, endDate]);
+
+  // Chart data: Profit margins by product
+  const profitMarginChartData = useMemo(() => {
+    if (!profitLoss?.productProfits) return [];
+    return profitLoss.productProfits
+      .map((p) => ({
+        name: p.name.length > 10 ? p.name.slice(0, 10) + "..." : p.name,
+        fullName: p.name,
+        profit: p.margin,
+        marginPercent: p.marginPercent,
+      }))
+      .sort((a, b) => b.profit - a.profit)
+      .slice(0, 8);
+  }, [profitLoss]);
 
   const downloadDailyReport = () => {
     const headers = ["Date", "Sales", "Invoices", "Hamali (Invoice)", "Hamali (Cash)", "Total Hamali"];
@@ -682,8 +768,12 @@ export default function Reports() {
         </Card>
       )}
 
-      <Tabs defaultValue="invoices" className="space-y-4">
+      <Tabs defaultValue="analytics" className="space-y-4">
         <TabsList className="flex-wrap">
+          <TabsTrigger value="analytics" data-testid="tab-analytics">
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Analytics
+          </TabsTrigger>
           <TabsTrigger value="invoices" data-testid="tab-invoices">
             <Receipt className="h-4 w-4 mr-1" />
             Invoice Details
@@ -696,6 +786,278 @@ export default function Reports() {
           <TabsTrigger value="stock" data-testid="tab-stock">Stock Movements</TabsTrigger>
           <TabsTrigger value="lowstock" data-testid="tab-lowstock">Low Stock Alerts</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Daily Sales & Hamali Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-72" data-testid="chart-daily-sales">
+                  {dailySalesChartData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No sales data for selected period
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={dailySalesChartData}>
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip 
+                          formatter={(value: number, name: string) => [
+                            `₹${value.toLocaleString("en-IN")}`, 
+                            name === "sales" ? "Sales" : "Hamali"
+                          ]}
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "6px",
+                          }}
+                        />
+                        <Legend />
+                        <Bar 
+                          dataKey="sales" 
+                          name="Sales"
+                          fill="hsl(var(--primary))"
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="hamali" 
+                          name="Hamali"
+                          stroke="hsl(var(--chart-2))"
+                          strokeWidth={2}
+                          dot={{ fill: "hsl(var(--chart-2))" }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Revenue Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-72" data-testid="chart-revenue-breakdown">
+                  {invoiceBreakdownData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No revenue data for selected period
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={invoiceBreakdownData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={2}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          labelLine={false}
+                        >
+                          {invoiceBreakdownData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number) => [`₹${value.toLocaleString("en-IN")}`, "Amount"]}
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "6px",
+                          }}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Hamali Collection</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64" data-testid="chart-hamali-breakdown">
+                  {hamaliBreakdownData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No Hamali data for selected period
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={hamaliBreakdownData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                        >
+                          {hamaliBreakdownData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number) => [`₹${value.toLocaleString("en-IN")}`, "Amount"]}
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "6px",
+                          }}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Stock Value Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64" data-testid="chart-stock-distribution">
+                  {stockDistributionData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      No stock data available
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={stockDistributionData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name }) => name.length > 8 ? name.slice(0, 8) + "..." : name}
+                        >
+                          {stockDistributionData.map((_, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: number, _, props) => [
+                            `₹${value.toLocaleString("en-IN")} (${props.payload.stock} ${props.payload.unit})`,
+                            "Value"
+                          ]}
+                          contentStyle={{ 
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "6px",
+                          }}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Stock Flow</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64" data-testid="chart-stock-flow">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={stockFlowData} layout="vertical">
+                      <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={70} />
+                      <Tooltip 
+                        formatter={(value: number) => [`${value} units`, "Quantity"]}
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px",
+                        }}
+                      />
+                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                        <Cell fill="hsl(var(--chart-1))" />
+                        <Cell fill="hsl(var(--chart-2))" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Product Profit Margins</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72" data-testid="chart-profit-margins">
+                {profitMarginChartData.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    No profit data available
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={profitMarginChartData}>
+                      <XAxis 
+                        dataKey="name" 
+                        tick={{ fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 11 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                      />
+                      <Tooltip 
+                        formatter={(value: number, name: string, props) => {
+                          if (name === "profit") {
+                            return [`₹${value.toLocaleString("en-IN")} (${props.payload.marginPercent.toFixed(1)}% margin)`, props.payload.fullName];
+                          }
+                          return [value, name];
+                        }}
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px",
+                        }}
+                      />
+                      <Bar 
+                        dataKey="profit" 
+                        name="Profit"
+                        fill="hsl(var(--primary))"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="invoices" className="space-y-4">
           <Card>

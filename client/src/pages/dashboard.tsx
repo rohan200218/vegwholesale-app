@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,20 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+  Legend,
+} from "recharts";
 import type { Vendor, Customer, Product, Invoice, Purchase } from "@shared/schema";
 
 function MetricCard({
@@ -149,6 +164,70 @@ export default function Dashboard() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5);
 
+  // Chart data: Top products by stock value
+  const stockValueData = useMemo(() => {
+    return products
+      .map((p) => ({
+        name: p.name.length > 12 ? p.name.slice(0, 12) + "..." : p.name,
+        fullName: p.name,
+        value: p.currentStock * p.purchasePrice,
+        stock: p.currentStock,
+        unit: p.unit,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [products]);
+
+  // Chart data: Last 7 days sales trend - single pass aggregation for O(n) performance
+  const salesTrendData = useMemo(() => {
+    // First, aggregate all invoices by date in a single pass
+    const salesByDate = new Map<string, { sales: number; count: number }>();
+    invoices.forEach((inv) => {
+      const existing = salesByDate.get(inv.date) || { sales: 0, count: 0 };
+      existing.sales += inv.grandTotal;
+      existing.count += 1;
+      salesByDate.set(inv.date, existing);
+    });
+
+    // Then build the 7-day array using the pre-aggregated map
+    const days: { date: string; sales: number; invoices: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      const dayData = salesByDate.get(dateStr) || { sales: 0, count: 0 };
+      days.push({
+        date: d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+        sales: dayData.sales,
+        invoices: dayData.count,
+      });
+    }
+    return days;
+  }, [invoices]);
+
+  // Chart data: Stock distribution by product (pie chart)
+  const stockDistributionData = useMemo(() => {
+    return products
+      .filter((p) => p.currentStock > 0)
+      .map((p) => ({
+        name: p.name,
+        value: p.currentStock,
+        unit: p.unit,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [products]);
+
+  // Chart colors matching the design system
+  const CHART_COLORS = [
+    "hsl(var(--chart-1))",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--chart-5))",
+    "hsl(var(--primary))",
+  ];
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -219,6 +298,97 @@ export default function Dashboard() {
           icon={TrendingUp}
           trend="up"
         />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="text-lg font-semibold">7-Day Sales Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64" data-testid="chart-sales-trend">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={salesTrendData}>
+                  <defs>
+                    <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => [`₹${value.toLocaleString("en-IN")}`, "Sales"]}
+                    contentStyle={{ 
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "6px",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="sales"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    fill="url(#salesGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <CardTitle className="text-lg font-semibold">Stock Value by Product</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64" data-testid="chart-stock-value">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stockValueData} layout="vertical">
+                  <XAxis 
+                    type="number" 
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                  />
+                  <YAxis 
+                    type="category" 
+                    dataKey="name" 
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={80}
+                  />
+                  <Tooltip 
+                    formatter={(value: number) => [`₹${value.toLocaleString("en-IN")}`, "Value"]}
+                    contentStyle={{ 
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "6px",
+                    }}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    fill="hsl(var(--primary))"
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
