@@ -185,7 +185,7 @@ export default function Dashboard() {
             </Link>
           </Button>
           <Button asChild variant="default" data-testid="button-new-invoice">
-            <Link href="/billing">
+            <Link href="/weighing">
               <Receipt className="h-4 w-4 mr-2" />
               New Invoice
             </Link>
@@ -226,7 +226,7 @@ export default function Dashboard() {
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-lg font-semibold">Recent Invoices</CardTitle>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/billing">View All</Link>
+              <Link href="/print">View All</Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -235,7 +235,7 @@ export default function Dashboard() {
                 <Receipt className="h-8 w-8 mb-2" />
                 <p className="text-sm">No invoices yet</p>
                 <Button variant="outline" size="sm" className="mt-2" asChild>
-                  <Link href="/billing">Create First Invoice</Link>
+                  <Link href="/weighing">Create First Invoice</Link>
                 </Button>
               </div>
             ) : (
@@ -260,7 +260,7 @@ export default function Dashboard() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={invoice.status === "paid" ? "default" : "secondary"}
+                          variant={invoice.status === "completed" ? "default" : "secondary"}
                           className="text-xs"
                         >
                           {invoice.status}
