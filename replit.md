@@ -306,6 +306,14 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 9, 2025: Enhanced Add Vehicle dialog with auto-calculations
+  - 2-column layout for vehicle details (number, type, capacity, vendor, driver info)
+  - Multi-select products with checkboxes and quantity input per product
+  - Auto-calculate Total Weight from KG products (displayed in summary)
+  - Auto-calculate Total Bags from Bag products (displayed in summary)
+  - Capacity field auto-fills based on total weight (converted to tons)
+  - Bag count badge shown beside quantity for bag-type products
+  - Vendor selection used for movement tracking notes
 - December 9, 2025: Added Sell page (vehicle fleet view)
   - Displays all vehicles as cards with truck icons
   - Shows vehicle number, type, and loaded products with quantities

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Truck, Plus, Package, ArrowRight, X, Minus } from "lucide-react";
+import { Truck, Plus, Package, ArrowRight, X, Minus, Weight, ShoppingBag } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Vehicle, Product, VehicleInventory, Vendor } from "@shared/schema";
 
@@ -186,6 +186,32 @@ export default function Sell() {
     return getProduct(productId)?.unit || "Units";
   };
 
+  const { totalWeight, totalBags } = useMemo(() => {
+    let weight = 0;
+    let bags = 0;
+    
+    for (const item of selectedProducts) {
+      const product = getProduct(item.productId);
+      if (!product || item.quantity <= 0) continue;
+      
+      const unit = product.unit?.toLowerCase() || "";
+      if (unit === "kg") {
+        weight += item.quantity;
+      } else if (unit === "bag" || unit === "bags") {
+        bags += item.quantity;
+      }
+    }
+    
+    return { totalWeight: weight, totalBags: bags };
+  }, [selectedProducts, products]);
+
+  useEffect(() => {
+    if (totalWeight > 0) {
+      const tons = (totalWeight / 1000).toFixed(2);
+      form.setValue("capacity", tons);
+    }
+  }, [totalWeight, form]);
+
   const handleVehicleClick = (vehicleId: string) => {
     navigate(`/weighing?vehicleId=${vehicleId}`);
   };
@@ -343,6 +369,31 @@ export default function Sell() {
                   />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-md">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Weight className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Weight</p>
+                      <p className="text-lg font-semibold" data-testid="text-total-weight">
+                        {totalWeight.toFixed(1)} KG
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <ShoppingBag className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Bags</p>
+                      <p className="text-lg font-semibold" data-testid="text-total-bags">
+                        {totalBags} Bags
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium">Select Products to Load</h3>
@@ -382,34 +433,42 @@ export default function Sell() {
                                     <label className="text-sm text-muted-foreground mb-1 block">
                                       Quantity ({product.unit})
                                     </label>
-                                    <div className="flex items-center gap-1 max-w-xs">
-                                      <Button
-                                        type="button"
-                                        size="icon"
-                                        variant="outline"
-                                        onClick={() => updateProductQuantity(product.id, (productData?.quantity || 0) - 1)}
-                                        className="h-8 w-8"
-                                      >
-                                        <Minus className="h-3 w-3" />
-                                      </Button>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step={product.unit === "KG" ? "0.1" : "1"}
-                                        value={productData?.quantity || 0}
-                                        onChange={(e) => updateProductQuantity(product.id, parseFloat(e.target.value) || 0)}
-                                        className="text-center h-8"
-                                        data-testid={`input-quantity-${product.id}`}
-                                      />
-                                      <Button
-                                        type="button"
-                                        size="icon"
-                                        variant="outline"
-                                        onClick={() => updateProductQuantity(product.id, (productData?.quantity || 0) + 1)}
-                                        className="h-8 w-8"
-                                      >
-                                        <Plus className="h-3 w-3" />
-                                      </Button>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          onClick={() => updateProductQuantity(product.id, (productData?.quantity || 0) - 1)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step={product.unit === "KG" ? "0.1" : "1"}
+                                          value={productData?.quantity || 0}
+                                          onChange={(e) => updateProductQuantity(product.id, parseFloat(e.target.value) || 0)}
+                                          className="text-center h-8 w-24"
+                                          data-testid={`input-quantity-${product.id}`}
+                                        />
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          onClick={() => updateProductQuantity(product.id, (productData?.quantity || 0) + 1)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                      {(product.unit?.toLowerCase() === "bag" || product.unit?.toLowerCase() === "bags") && (productData?.quantity || 0) > 0 && (
+                                        <Badge variant="secondary" className="flex items-center gap-1">
+                                          <ShoppingBag className="h-3 w-3" />
+                                          {productData?.quantity || 0} Bags
+                                        </Badge>
+                                      )}
                                     </div>
                                   </div>
                                 )}
