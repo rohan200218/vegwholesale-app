@@ -22,6 +22,7 @@ import type { Vehicle, Product, VehicleInventory, Vendor } from "@shared/schema"
 const productItemSchema = z.object({
   productId: z.string(),
   quantity: z.number().min(0),
+  bags: z.number().min(0).optional(),
 });
 
 const vehicleFormSchema = z.object({
@@ -162,7 +163,7 @@ export default function Sell() {
       if (exists) {
         return prev.filter((p) => p.productId !== productId);
       }
-      return [...prev, { productId, quantity: 0 }];
+      return [...prev, { productId, quantity: 0, bags: 0 }];
     });
   };
 
@@ -170,6 +171,14 @@ export default function Sell() {
     setSelectedProducts((prev) =>
       prev.map((p) =>
         p.productId === productId ? { ...p, quantity: Math.max(0, value) } : p
+      )
+    );
+  };
+
+  const updateProductBags = (productId: string, value: number) => {
+    setSelectedProducts((prev) =>
+      prev.map((p) =>
+        p.productId === productId ? { ...p, bags: Math.max(0, Math.floor(value)) } : p
       )
     );
   };
@@ -192,14 +201,13 @@ export default function Sell() {
     
     for (const item of selectedProducts) {
       const product = getProduct(item.productId);
-      if (!product || item.quantity <= 0) continue;
+      if (!product) continue;
       
       const unit = product.unit?.toLowerCase() || "";
-      if (unit === "kg") {
+      if (unit === "kg" && item.quantity > 0) {
         weight += item.quantity;
-      } else if (unit === "bag" || unit === "bags") {
-        bags += item.quantity;
       }
+      bags += item.bags || 0;
     }
     
     return { totalWeight: weight, totalBags: bags };
@@ -429,11 +437,11 @@ export default function Sell() {
                                 </div>
                                 
                                 {isSelected && (
-                                  <div className="mt-3">
-                                    <label className="text-sm text-muted-foreground mb-1 block">
-                                      Quantity ({product.unit})
-                                    </label>
-                                    <div className="flex items-center gap-2 flex-wrap">
+                                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-sm text-muted-foreground mb-1 block">
+                                        Quantity ({product.unit})
+                                      </label>
                                       <div className="flex items-center gap-1">
                                         <Button
                                           type="button"
@@ -450,7 +458,7 @@ export default function Sell() {
                                           step={product.unit === "KG" ? "0.1" : "1"}
                                           value={productData?.quantity || 0}
                                           onChange={(e) => updateProductQuantity(product.id, parseFloat(e.target.value) || 0)}
-                                          className="text-center h-8 w-24"
+                                          className="text-center h-8 w-20"
                                           data-testid={`input-quantity-${product.id}`}
                                         />
                                         <Button
@@ -463,12 +471,41 @@ export default function Sell() {
                                           <Plus className="h-3 w-3" />
                                         </Button>
                                       </div>
-                                      {(product.unit?.toLowerCase() === "bag" || product.unit?.toLowerCase() === "bags") && (productData?.quantity || 0) > 0 && (
-                                        <Badge variant="secondary" className="flex items-center gap-1">
-                                          <ShoppingBag className="h-3 w-3" />
-                                          {productData?.quantity || 0} Bags
-                                        </Badge>
-                                      )}
+                                    </div>
+                                    <div>
+                                      <label className="text-sm text-muted-foreground mb-1 block flex items-center gap-1">
+                                        <ShoppingBag className="h-3 w-3" />
+                                        Bags
+                                      </label>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          onClick={() => updateProductBags(product.id, (productData?.bags || 0) - 1)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          value={productData?.bags || 0}
+                                          onChange={(e) => updateProductBags(product.id, parseInt(e.target.value) || 0)}
+                                          className="text-center h-8 w-20"
+                                          data-testid={`input-bags-${product.id}`}
+                                        />
+                                        <Button
+                                          type="button"
+                                          size="icon"
+                                          variant="outline"
+                                          onClick={() => updateProductBags(product.id, (productData?.bags || 0) + 1)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   </div>
                                 )}
