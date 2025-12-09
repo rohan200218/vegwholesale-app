@@ -1,357 +1,47 @@
 # VegWholesale - Vegetable Wholesale Business Manager
 
 ## Overview
-A comprehensive business management system for vegetable wholesale operations. The application helps manage the entire workflow from buying vegetables from vendors/farmers to selling to customers.
-
-## Current State
-Full-featured application with complete business workflow:
-- Vendor management with payment tracking
-- Customer management with receivables tracking
-- Vehicle tracking
-- Product catalog
-- Stock management with movement history
-- Purchase orders
-- Vendor returns for defective products
-- Invoice/billing with Hamali charge option
-- Payment tracking (vendor & customer)
-- Business reports (profit/loss, stock movements)
-- Print center for invoices and delivery challans
-- Company settings for branding
-
-## Technology Stack
-- **Frontend**: React with TypeScript, TailwindCSS, Shadcn UI
-- **Backend**: Express.js with TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Routing**: Wouter for client-side routing
-- **State Management**: TanStack Query (React Query)
-
-## Project Structure
-```
-client/
-  src/
-    components/       # Reusable components
-      app-sidebar.tsx # Navigation sidebar
-      theme-toggle.tsx # Dark/light mode toggle
-      ui/             # Shadcn UI components
-    pages/            # Page components
-      dashboard.tsx   # Overview with metrics
-      vendors.tsx     # Vendor CRUD
-      customers.tsx   # Customer CRUD
-      vehicles.tsx    # Vehicle CRUD
-      products.tsx    # Product catalog
-      stock.tsx       # Stock management
-      purchases.tsx   # Purchase orders
-      billing.tsx     # Customer invoices
-      payments.tsx    # Vendor/customer payments
-      reports.tsx     # Business reports
-      print.tsx       # Print center
-      settings.tsx    # Company settings
-    App.tsx           # Main app with routing
-server/
-  routes.ts           # API endpoints
-  storage.ts          # Database storage layer
-  db.ts               # Database connection
-shared/
-  schema.ts           # Data models and types (Drizzle schema)
-```
-
-## Key Features
-
-### Vendor Management
-- Add/edit/delete vendors
-- Track name, phone, email, address
-- View outstanding balances
-
-### Customer Management
-- Add/edit/delete customers
-- Track contact information
-- View receivable balances
-
-### Vehicle Tracking
-- Register vehicles for stock receiving
-- Track vehicle number, type, capacity, driver details
-
-### Product Catalog
-- Manage vegetable products
-- Set purchase and sale prices
-- Track units (KG, Dozen, Piece, etc.)
-- Reorder level alerts
-
-### Stock Management
-- Real-time inventory tracking
-- Add/reduce stock with reasons
-- Stock movement history with date filtering
-- Low stock alerts
-- Separate "Returned" column showing vendor return quantities
-
-### Purchase Orders
-- Create purchases from vendors
-- Assign vehicles
-- Add multiple line items
-- Auto-update stock on creation
-
-### Vendor Returns
-- Return defective or damaged products to vendors
-- Track return reason per item (Damaged, Rotten/Spoiled, Wrong Item, Quality Issue, Excess Stock, Other)
-- Optional vehicle assignment for truck-based returns
-- Auto-deduct stock when return is created
-- Credits vendor balance (reduces payable amount)
-- Return history with filtering
-
-### Weighing Station
-- Select truck/vehicle and customer
-- Multi-unit support:
-  - Weight-based products (KG): Use scale capture or manual entry
-  - Count-based products (Box, Bag, Crate, Piece, Dozen, Bundle): Manual quantity with +/- buttons
-- Auto-detect product unit and show appropriate input method
-- Vehicle inventory display with available quantities
-- Quick invoice generation from weighing
-- **Weighing Machine Integration** (Web Serial API):
-  - Connect USB/Serial weighing scales directly from browser
-  - Supports Chrome and Edge browsers
-  - Configurable baud rate, data bits, parity settings
-  - Live weight display with stable/stabilizing indicator
-  - "Capture Weight" button to use scale reading
-  - Demo mode for testing without physical scale
-  - Settings saved to browser localStorage
-- Hamali charge system with rate per KG:
-  - "Include Hamali" checkbox to add Hamali to invoice
-  - "Paid by Cash" checkbox for separate cash payment recording
-  - Rate per KG input field (default: 2)
-  - Hamali calculated from total KG weight of weight-based products only
-  - Auto-creates Hamali cash payment record when "Paid by Cash" is checked
-
-### Billing/Invoicing
-- Create customer invoices
-- Hamali charge system:
-  - Include Hamali toggle (add to invoice or exclude)
-  - Paid by Cash toggle (record separately in Hamali cash payments)
-  - Rate per KG calculation based on total weight
-- Auto-calculate totals
-- Stock deduction on invoice creation
-
-### Payment Tracking
-- Record vendor payments (cash, bank, UPI, cheque)
-- Record customer payments
-- Track outstanding balances
-- Payment history for audit
-
-### Reports
-- **Date Range Filtering**: Filter all reports by from/to date
-- **View By Options**:
-  - All Data: Shows complete data for date range
-  - Day-wise: Aggregated daily summary with sales, invoices, Hamali breakdown
-  - Monthly: Aggregated monthly summary
-- **Download CSV**: Each report section has download button with TOTALS row
-  - Daily report CSV
-  - Monthly report CSV
-  - Invoice details CSV (includes subtotal, Hamali, grand total)
-  - Hamali cash payments CSV
-  - Stock movements CSV
-- **Summary Cards**:
-  - Product Sales (Subtotal) for filtered period
-  - Total Sales (Grand Total) including Hamali
-  - Hamali from Invoices with count
-  - Hamali Direct Cash with count
-  - Total Hamali Collected
-- **Analytics Tab** (default): Graphical charts for business insights
-  - Daily Sales & Hamali Trend (ComposedChart with bars and line)
-  - Revenue Breakdown pie chart (Product Sales vs Hamali)
-  - Hamali Collection pie chart (Bills vs Direct Cash)
-  - Stock Value Distribution pie chart
-  - Stock Flow bar chart (In vs Out movements)
-  - Product Profit Margins bar chart
-- **Invoice Details Tab**:
-  - Each invoice with Hamali status badge (Included/Excluded)
-  - Hamali percentage and amount per invoice
-  - Subtotal and grand total breakdown
-- **Hamali Cash Payments Tab**:
-  - All direct cash payments with date, amount, method
-  - Customer association if any
-  - Running total
-- **Profit Margins Tab**: Product-wise margin analysis
-- **Stock Movements Tab**: In/out movements with reason
-- **Low Stock Alerts Tab**: Products below reorder level
-
-### Sell Page (Fleet View)
-- Vehicle cards showing truck icon, vehicle number, and type
-- Products loaded per vehicle with quantities from vehicle_inventory
-- Badge showing item count or "Empty" status
-- Plus button card to add new vehicles with dialog form
-- Click vehicle card to navigate to weighing station with vehicle pre-selected
-
-### Dashboard
-- Quick action buttons for common tasks
-- Key metrics cards (vendors, customers, products, invoices)
-- Outstanding balances summary
-- **7-Day Sales Trend**: Area chart showing sales over last 7 days
-- **Stock Value by Product**: Horizontal bar chart showing top products by stock value
-- Low stock alerts
-
-### Print Center
-- Generate tax invoices
-- Generate delivery challans
-- Company branding on documents
-- Print-ready format
-
-### Settings
-- Company name and contact info
-- GST number
-- Bank details for invoices
-
-## API Endpoints
-
-### Vendors
-- GET /api/vendors
-- GET /api/vendors/:id
-- GET /api/vendors/:id/balance
-- POST /api/vendors
-- PATCH /api/vendors/:id
-- DELETE /api/vendors/:id
-
-### Customers
-- GET /api/customers
-- GET /api/customers/:id
-- GET /api/customers/:id/balance
-- POST /api/customers
-- PATCH /api/customers/:id
-- DELETE /api/customers/:id
-
-### Vehicles
-- GET /api/vehicles
-- GET /api/vehicles/:id
-- POST /api/vehicles
-- PATCH /api/vehicles/:id
-- DELETE /api/vehicles/:id
-
-### Products
-- GET /api/products
-- GET /api/products/:id
-- POST /api/products
-- PATCH /api/products/:id
-- DELETE /api/products/:id
-
-### Stock Movements
-- GET /api/stock-movements
-- POST /api/stock-movements
-
-### Purchases
-- GET /api/purchases
-- GET /api/purchases/:id
-- GET /api/purchases/:id/items
-- POST /api/purchases
-
-### Vendor Returns
-- GET /api/vendor-returns
-- GET /api/vendor-returns/:id
-- GET /api/vendor-returns/:id/items
-- POST /api/vendor-returns
-
-### Invoices
-- GET /api/invoices
-- GET /api/invoices/:id
-- GET /api/invoices/:id/items
-- POST /api/invoices
-
-### Payments
-- GET /api/vendor-payments
-- POST /api/vendor-payments
-- GET /api/customer-payments
-- POST /api/customer-payments
-
-### Hamali Cash Payments
-- GET /api/hamali-cash
-- POST /api/hamali-cash
-- DELETE /api/hamali-cash/:id
-
-### Reports
-- GET /api/reports/profit-loss
-- GET /api/reports/vendor-balances
-- GET /api/reports/customer-balances
-
-### Settings
-- GET /api/company-settings
-- POST /api/company-settings
-
-## Database Schema (PostgreSQL)
-- users - User accounts (Replit Auth)
-- sessions - User session storage
-- vendors - Vendor information
-- customers - Customer information
-- vehicles - Vehicle tracking
-- products - Product catalog with pricing
-- stock_movements - Stock in/out history
-- purchases - Purchase order headers
-- purchase_items - Purchase line items
-- vendor_returns - Vendor return headers
-- vendor_return_items - Vendor return line items
-- invoices - Invoice headers
-- invoice_items - Invoice line items
-- vendor_payments - Vendor payment records
-- customer_payments - Customer payment records
-- hamali_cash_payments - Direct Hamali cash payments
-- company_settings - Company configuration
-- vehicle_inventory - Per-vehicle product quantities
-- vehicle_inventory_movements - Vehicle stock load/sale history
-
-## Design System
-- Font: IBM Plex Sans (primary), IBM Plex Mono (numbers)
-- Color scheme: Green primary color (142 hue) for vegetable/organic theme
-- Supports dark/light mode toggle
-- Follows Carbon Design System principles for enterprise apps
+VegWholesale is a comprehensive business management system designed for vegetable wholesale operations. It streamlines the entire workflow from procurement (buying from vendors/farmers) to sales (selling to customers). The system aims to provide robust management for vendor and customer relations, inventory, purchases, sales, and financial tracking, ultimately enhancing efficiency and profitability for wholesale businesses.
 
 ## User Preferences
 - Currency: Indian Rupees (₹)
 - Date format: YYYY-MM-DD
 - Business focused, minimal UI
 
-## Recent Changes
-- December 9, 2025: Enhanced Add Vehicle dialog with auto-calculations
-  - 2-column layout for vehicle details (number, type, capacity, vendor, driver info)
-  - Multi-select products with checkboxes and quantity input per product
-  - Auto-calculate Total Weight from KG products (displayed in summary)
-  - Auto-calculate Total Bags from Bag products (displayed in summary)
-  - Capacity field auto-fills based on total weight (converted to tons)
-  - Bag count badge shown beside quantity for bag-type products
-  - Vendor selection used for movement tracking notes
-- December 9, 2025: Added Sell page (vehicle fleet view)
-  - Displays all vehicles as cards with truck icons
-  - Shows vehicle number, type, and loaded products with quantities
-  - Plus button to add new vehicles with dialog form
-  - Click vehicle to navigate to weighing station for selling
-  - Added as first item in sidebar navigation
-- December 9, 2025: Added comprehensive graphical analytics
-  - Dashboard: 7-day sales trend area chart, stock value distribution bar chart
-  - Reports Analytics tab: Daily sales trend, revenue breakdown, Hamali collection, stock flow, profit margins charts
-  - All charts use Recharts with Carbon Design System color tokens for theme consistency
-  - Fixed chart memoization for proper date filter synchronization
-  - Optimized dashboard sales aggregation to O(n) single-pass algorithm
-  - CSV exports now include TOTALS row with subtotal, Hamali, and grand total
-- December 9, 2025: Added weighing machine integration using Web Serial API
-  - Connect USB/Serial scales directly from Chrome/Edge browsers
-  - Configurable settings: baud rate, data bits, parity (saved to localStorage)
-  - Demo mode for testing without physical scale
-  - Settings dialog for configuration
-- December 9, 2025: Enhanced Hamali cash payment tracking
-  - Hamali cash payments now link to source invoice (invoiceId, invoiceNumber, totalBillAmount)
-  - Auto-creates Hamali cash payment record when invoice has "Paid by Cash" checked
-  - Reports show invoice details for each Hamali cash payment
-  - CSV export includes invoice reference data
-- December 8, 2025: Updated Hamali charge system from percentage to rate per KG
-  - Replaced percentage-based calculation with rate per KG
-  - Added dual checkbox control: "Include Hamali" and "Paid by Cash"
-  - Hamali now calculated from total KG weight (weight-based products only)
-  - Database schema updated with new columns: hamali_rate_per_kg, hamali_paid_by_cash, total_kg_weight
-  - Reports and print pages updated to show rate per KG
-- December 8, 2025: Added vendor returns feature
-  - Return defective products to vendors with reason tracking
-  - Automatically deducts stock and credits vendor balance
-  - Full return history with vendor/vehicle/amount tracking
-- December 8, 2025: Added vehicle inventory tracking system
-  - Products loaded into vehicles via purchases are tracked separately
-  - Weighing station displays remaining stock per vehicle
-  - Invoice creation automatically deducts from vehicle inventory
-  - Movement history tracks all loading and selling activity
-- December 8, 2025: Added payments, reports, print center, and settings pages
-- December 8, 2025: Migrated from in-memory storage to PostgreSQL database
-- December 8, 2025: Initial MVP release with all core features
+## System Architecture
+The application is built with a modern web stack:
+-   **Frontend**: React with TypeScript, utilizing TailwindCSS for styling and Shadcn UI for componentry. Wouter handles client-side routing, and TanStack Query manages state.
+-   **Backend**: Express.js with TypeScript provides the API endpoints.
+-   **Database**: PostgreSQL is used for data persistence, managed with Drizzle ORM.
+
+**Key Features & Design Decisions:**
+-   **Comprehensive Workflow**: Manages vendors, customers, products, stock, purchases, sales (invoicing), payments, and vehicle tracking.
+-   **Inventory Management**: Real-time stock tracking with movement history, reorder level alerts, and a dedicated "Returned" column for vendor returns.
+-   **Vendor Returns**: Supports returning defective products with detailed reason tracking, automatic stock deduction, and vendor balance adjustments.
+-   **Weighing Station**: Features multi-unit support (weight-based/count-based), auto-detection of product units, and quick invoice generation.
+    -   **Weighing Machine Integration**: Direct connectivity with USB/Serial weighing scales via Web Serial API (Chrome/Edge), with configurable settings and a demo mode.
+    -   **Hamali Charge System**: Configurable rate per KG, inclusion/exclusion from invoice, and separate cash payment tracking.
+-   **Billing/Invoicing**: Automated calculations, stock deduction, and integrated Hamali charge management.
+-   **Payment Tracking**: Records vendor and customer payments, tracks outstanding balances, and maintains payment history.
+-   **Reporting & Analytics**:
+    -   Date range filtering and "View By" options (All Data, Day-wise, Monthly).
+    -   CSV export for all reports including totals.
+    -   Graphical analytics (Recharts) for sales trends, revenue breakdown, Hamali collection, stock value, and profit margins, adhering to Carbon Design System color tokens.
+-   **Sell Page (Fleet View)**: Visual representation of vehicles as cards, showing loaded products and quantities, with direct navigation to the weighing station for sales.
+-   **Dashboard**: Provides quick actions, key metrics, outstanding balances, 7-day sales trend, and stock value distribution charts.
+-   **Print Center**: Generates print-ready tax invoices and delivery challans with company branding.
+-   **User Interface**: Employs IBM Plex Sans and IBM Plex Mono fonts. A green primary color (142 hue) is used for a vegetable/organic theme, with dark/light mode support, following Carbon Design System principles.
+-   **Database Schema**: A normalized PostgreSQL schema supports all core entities (users, vendors, customers, products, vehicles, stock, purchases, invoices, payments, returns, Hamali cash, company settings, vehicle inventory, etc.).
+
+## External Dependencies
+-   **Replit Auth**: For user authentication.
+-   **PostgreSQL**: Relational database.
+-   **Drizzle ORM**: ORM for database interaction.
+-   **React**: Frontend library.
+-   **TailwindCSS**: CSS framework.
+-   **Shadcn UI**: UI component library.
+-   **Wouter**: Client-side router.
+-   **TanStack Query (React Query)**: Data fetching and state management.
+-   **Express.js**: Backend web framework.
+-   **Web Serial API**: For direct integration with USB/Serial weighing scales (browser-specific).
+-   **Recharts**: Charting library for data visualization in reports and dashboard.
