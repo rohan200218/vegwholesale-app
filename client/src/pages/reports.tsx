@@ -348,7 +348,19 @@ export default function Reports() {
       inv.hamaliPaidByCash ? "Yes" : "No",
       inv.grandTotal.toFixed(2),
     ]);
-    downloadCSV([headers, ...rows], `invoice-report-${startDate}-to-${endDate}.csv`);
+    const totals = [
+      "TOTALS",
+      "",
+      `${filteredInvoices.length} invoices`,
+      filteredSummary.totalSubtotal.toFixed(2),
+      `${filteredSummary.invoicesWithHamali} included`,
+      "",
+      "",
+      filteredSummary.invoiceHamaliTotal.toFixed(2),
+      "",
+      filteredSummary.totalSalesWithHamali.toFixed(2),
+    ];
+    downloadCSV([headers, ...rows, totals], `invoice-report-${startDate}-to-${endDate}.csv`);
   };
 
   const downloadHamaliCashReport = () => {
