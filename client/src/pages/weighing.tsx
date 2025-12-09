@@ -23,11 +23,13 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Scale, Plus, Trash2, Truck, User, FileText, Wifi, WifiOff, RefreshCw, HandCoins } from "lucide-react";
+import { Scale, Plus, Trash2, Truck, User, FileText, Wifi, WifiOff, RefreshCw, HandCoins, Settings } from "lucide-react";
 import type { Vehicle, Customer, Product, VehicleInventory } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Package } from "lucide-react";
+import { useScale, isWebSerialSupported } from "@/hooks/use-scale";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 type WeighingItem = {
   id: string;
@@ -70,6 +72,10 @@ export default function Weighing() {
   const [weightStable, setWeightStable] = useState(false);
   const [demoMode, setDemoMode] = useState(true);
   const demoIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [scaleSettingsOpen, setScaleSettingsOpen] = useState(false);
+  
+  // Real scale connection using Web Serial API
+  const scale = useScale();
 
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<Vehicle[]>({
     queryKey: ["/api/vehicles"],
@@ -130,19 +136,66 @@ export default function Weighing() {
     };
   }, [demoMode, scaleConnected]);
 
-  const toggleScaleConnection = () => {
-    if (scaleConnected) {
+  // Sync real scale state to local state when not in demo mode
+  useEffect(() => {
+    if (!demoMode) {
+      // In real mode, use scale hook state
+      setScaleConnected(scale.isConnected);
+      if (scale.isConnected && scale.currentWeight !== null) {
+        setLiveWeight(scale.currentWeight);
+        setWeightStable(true); // Real scale provides stable readings
+      } else if (!scale.isConnected) {
+        setLiveWeight(0);
+        setWeightStable(false);
+      }
+    }
+  }, [demoMode, scale.isConnected, scale.currentWeight]);
+
+  // When switching from demo mode to real mode, disconnect demo
+  useEffect(() => {
+    if (!demoMode && scaleConnected && !scale.isConnected) {
+      // We're switching from demo mode while "connected" - reset local state
       setScaleConnected(false);
       setLiveWeight(0);
       setWeightStable(false);
+    }
+  }, [demoMode]);
+
+  const toggleScaleConnection = async () => {
+    if (demoMode) {
+      // Demo mode: toggle simulated connection
+      if (scaleConnected) {
+        setScaleConnected(false);
+        setLiveWeight(0);
+        setWeightStable(false);
+      } else {
+        setScaleConnected(true);
+        toast({
+          title: "Demo Mode Active",
+          description: "Simulating weight readings. Turn off Demo Mode to connect real scale.",
+        });
+      }
     } else {
-      setScaleConnected(true);
-      toast({
-        title: demoMode ? "Demo Mode Active" : "Connecting to Scale",
-        description: demoMode 
-          ? "Simulating weight readings. Connect real scale when ready." 
-          : "Attempting to connect to weighing machine...",
-      });
+      // Real scale mode: use Web Serial API
+      if (scale.isConnected) {
+        await scale.disconnect();
+        toast({ title: "Scale Disconnected" });
+      } else {
+        if (!isWebSerialSupported()) {
+          toast({
+            title: "Browser Not Supported",
+            description: "Please use Chrome or Edge browser to connect to weighing machine.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const success = await scale.connect();
+        if (success) {
+          toast({ title: "Scale Connected", description: "Weighing machine connected successfully." });
+        } else if (scale.error) {
+          toast({ title: "Connection Failed", description: scale.error, variant: "destructive" });
+        }
+      }
     }
   };
 
@@ -367,15 +420,82 @@ export default function Weighing() {
                 <div className="flex items-center gap-2">
                   <Scale className="h-4 w-4" />
                   Live Scale Reading
+                  {demoMode && <Badge variant="outline" className="text-xs">Demo</Badge>}
                 </div>
-                <Button
-                  variant={scaleConnected ? "destructive" : "default"}
-                  size="sm"
-                  onClick={toggleScaleConnection}
-                  data-testid="button-toggle-scale"
-                >
-                  {scaleConnected ? "Disconnect" : "Connect Scale"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {!demoMode && !scaleConnected && (
+                    <Dialog open={scaleSettingsOpen} onOpenChange={setScaleSettingsOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="icon" data-testid="button-scale-settings">
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Scale Settings</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <p className="text-sm text-muted-foreground">
+                            Configure your weighing machine connection settings. Check your scale manual for correct values.
+                          </p>
+                          <div className="grid gap-4">
+                            <div className="flex items-center justify-between">
+                              <Label>Baud Rate</Label>
+                              <Select value={scale.settings.baudRate.toString()} onValueChange={(v) => scale.updateSettings({ baudRate: parseInt(v) })}>
+                                <SelectTrigger className="w-40" data-testid="select-baud-rate">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="9600">9600 (Common)</SelectItem>
+                                  <SelectItem value="4800">4800</SelectItem>
+                                  <SelectItem value="19200">19200</SelectItem>
+                                  <SelectItem value="115200">115200</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <Label>Data Bits</Label>
+                              <Select value={scale.settings.dataBits.toString()} onValueChange={(v) => scale.updateSettings({ dataBits: parseInt(v) as 7 | 8 })}>
+                                <SelectTrigger className="w-40" data-testid="select-data-bits">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="8">8 (Common)</SelectItem>
+                                  <SelectItem value="7">7</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <Label>Parity</Label>
+                              <Select value={scale.settings.parity} onValueChange={(v) => scale.updateSettings({ parity: v as "none" | "even" | "odd" })}>
+                                <SelectTrigger className="w-40" data-testid="select-parity">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None (Common)</SelectItem>
+                                  <SelectItem value="even">Even</SelectItem>
+                                  <SelectItem value="odd">Odd</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Settings are saved automatically. Works with USB/Serial scales in Chrome/Edge browsers.
+                          </p>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                  <Button
+                    variant={scaleConnected ? "destructive" : "default"}
+                    size="sm"
+                    onClick={toggleScaleConnection}
+                    disabled={!demoMode && scale.isConnecting}
+                    data-testid="button-toggle-scale"
+                  >
+                    {!demoMode && scale.isConnecting ? "Connecting..." : scaleConnected ? "Disconnect" : "Connect Scale"}
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>

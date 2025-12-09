@@ -106,11 +106,20 @@ shared/
 - Auto-detect product unit and show appropriate input method
 - Vehicle inventory display with available quantities
 - Quick invoice generation from weighing
+- **Weighing Machine Integration** (Web Serial API):
+  - Connect USB/Serial weighing scales directly from browser
+  - Supports Chrome and Edge browsers
+  - Configurable baud rate, data bits, parity settings
+  - Live weight display with stable/stabilizing indicator
+  - "Capture Weight" button to use scale reading
+  - Demo mode for testing without physical scale
+  - Settings saved to browser localStorage
 - Hamali charge system with rate per KG:
   - "Include Hamali" checkbox to add Hamali to invoice
   - "Paid by Cash" checkbox for separate cash payment recording
   - Rate per KG input field (default: 2)
   - Hamali calculated from total KG weight of weight-based products only
+  - Auto-creates Hamali cash payment record when "Paid by Cash" is checked
 
 ### Billing/Invoicing
 - Create customer invoices
@@ -274,6 +283,16 @@ shared/
 - Business focused, minimal UI
 
 ## Recent Changes
+- December 9, 2025: Added weighing machine integration using Web Serial API
+  - Connect USB/Serial scales directly from Chrome/Edge browsers
+  - Configurable settings: baud rate, data bits, parity (saved to localStorage)
+  - Demo mode for testing without physical scale
+  - Settings dialog for configuration
+- December 9, 2025: Enhanced Hamali cash payment tracking
+  - Hamali cash payments now link to source invoice (invoiceId, invoiceNumber, totalBillAmount)
+  - Auto-creates Hamali cash payment record when invoice has "Paid by Cash" checked
+  - Reports show invoice details for each Hamali cash payment
+  - CSV export includes invoice reference data
 - December 8, 2025: Updated Hamali charge system from percentage to rate per KG
   - Replaced percentage-based calculation with rate per KG
   - Added dual checkbox control: "Include Hamali" and "Paid by Cash"
