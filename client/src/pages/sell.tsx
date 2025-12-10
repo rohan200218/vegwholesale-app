@@ -1172,7 +1172,6 @@ export default function Sell() {
                                           <Input
                                             type="number"
                                             min="0"
-                                            max={product.currentStock}
                                             step={product.unit === "KG" ? "0.1" : "1"}
                                             value={productData?.quantity || 0}
                                             onChange={(e) => updateProductQuantity(product.id, parseFloat(e.target.value) || 0)}
