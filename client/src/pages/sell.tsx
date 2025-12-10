@@ -1295,45 +1295,38 @@ export default function Sell() {
           return (
             <Card
               key={vehicle.id}
-              className="hover-elevate cursor-pointer w-36 flex-shrink-0"
+              className="hover-elevate cursor-pointer w-40 flex-shrink-0"
               onClick={() => handleVehicleSelect(vehicle.id)}
               data-testid={`card-vehicle-${vehicle.id}`}
             >
-              <CardContent className="p-2 flex flex-col gap-1">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <Truck className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-semibold truncate" title={vehicle.number}>{vehicle.number}</span>
-                  </div>
+              <CardContent className="p-3 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-5 w-5 text-primary flex-shrink-0" />
+                  <span className="text-sm font-bold truncate" title={vehicle.number} data-testid={`text-vehicle-number-${vehicle.id}`}>
+                    {vehicle.number}
+                  </span>
                 </div>
-                <div className="text-[10px] text-muted-foreground">{vehicle.type}</div>
+                <div className="text-xs text-muted-foreground">{vehicle.type}</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-muted-foreground">Total:</span>
+                  <span className="text-sm font-bold text-primary" data-testid={`text-vehicle-total-${vehicle.id}`}>
+                    {totalQty.toFixed(1)} KG
+                  </span>
+                </div>
                 {hasInventory ? (
-                  <div className="mt-1 space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-muted-foreground">Total:</span>
-                      <Badge variant="secondary" className="text-[10px] px-1 py-0 font-mono">
-                        {totalQty.toFixed(1)} KG
-                      </Badge>
-                    </div>
-                    <div className="space-y-0.5 max-h-16 overflow-y-auto">
-                      {itemsWithStock.slice(0, 3).map((inv) => {
-                        const product = products.find(p => p.id === inv.productId);
-                        return (
-                          <div key={inv.productId} className="flex items-center justify-between text-[10px]">
-                            <span className="truncate max-w-16">{product?.name || "?"}</span>
-                            <span className="font-mono text-muted-foreground">{inv.quantity}</span>
-                          </div>
-                        );
-                      })}
-                      {itemsWithStock.length > 3 && (
-                        <div className="text-[10px] text-muted-foreground text-center">
-                          +{itemsWithStock.length - 3} more
+                  <div className="space-y-1 pt-1 border-t">
+                    {itemsWithStock.map((inv) => {
+                      const product = products.find(p => p.id === inv.productId);
+                      return (
+                        <div key={inv.productId} className="flex items-center justify-between text-xs">
+                          <span className="truncate max-w-20">{product?.name || "?"}</span>
+                          <span className="font-mono text-muted-foreground">{inv.quantity}</span>
                         </div>
-                      )}
-                    </div>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-[10px] text-muted-foreground italic mt-1">Empty</div>
+                  <div className="text-xs text-muted-foreground italic">No products loaded</div>
                 )}
               </CardContent>
             </Card>
