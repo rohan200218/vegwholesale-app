@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -191,8 +192,8 @@ export default function Products() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="p-6 pb-4 flex items-center justify-between gap-4 flex-wrap shrink-0">
         <div>
           <h1 className="text-2xl font-semibold" data-testid="text-page-title">Products</h1>
           <p className="text-sm text-muted-foreground">
@@ -366,22 +367,23 @@ export default function Products() {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-                data-testid="input-search-products"
-              />
+      <div className="flex-1 overflow-hidden px-6 pb-6">
+        <Card className="flex flex-col h-full">
+          <CardHeader className="shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                  data-testid="input-search-products"
+                />
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-hidden">
           {filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Package className="h-12 w-12 mb-4" />
@@ -403,78 +405,81 @@ export default function Products() {
               )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead className="text-right">Purchase Price</TableHead>
-                  <TableHead className="text-right">Sale Price</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.map((product) => {
-                  const isLowStock = product.currentStock <= (product.reorderLevel || 10);
-                  return (
-                    <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
-                      <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="text-xs">
-                          {product.unit}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        ₹{product.purchasePrice.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        ₹{product.salePrice.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {product.currentStock.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        {isLowStock ? (
-                          <div className="flex items-center gap-1 text-chart-2">
-                            <AlertTriangle className="h-3 w-3" />
-                            <span className="text-xs">Low</span>
-                          </div>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">
-                            OK
+            <ScrollArea className="h-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead className="text-right">Purchase Price</TableHead>
+                    <TableHead className="text-right">Sale Price</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map((product) => {
+                    const isLowStock = product.currentStock <= (product.reorderLevel || 10);
+                    return (
+                      <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs">
+                            {product.unit}
                           </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(product)}
-                            data-testid={`button-edit-product-${product.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteProduct(product)}
-                            data-testid={`button-delete-product-${product.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          ₹{product.purchasePrice.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          ₹{product.salePrice.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {product.currentStock.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          {isLowStock ? (
+                            <div className="flex items-center gap-1 text-chart-2">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span className="text-xs">Low</span>
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              OK
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditDialog(product)}
+                              data-testid={`button-edit-product-${product.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteProduct(product)}
+                              data-testid={`button-delete-product-${product.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <AlertDialog open={!!deleteProduct} onOpenChange={() => setDeleteProduct(null)}>
         <AlertDialogContent>
