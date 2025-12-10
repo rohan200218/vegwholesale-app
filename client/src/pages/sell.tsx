@@ -164,6 +164,18 @@ function VehicleSalePane({
         throw new Error("Please select products to sell");
       }
 
+      // Check if all products have sufficient stock
+      for (const saleProduct of draft.products) {
+        if (saleProduct.weight <= 0) continue;
+        const product = products.find(p => p.id === saleProduct.productId);
+        if (product && product.currentStock < saleProduct.weight) {
+          throw new Error(`Insufficient stock for ${product.name}. Available: ${product.currentStock} ${product.unit}, Requested: ${saleProduct.weight} ${product.unit}`);
+        }
+        if (product && product.currentStock === 0) {
+          throw new Error(`No stock available for ${product.name}`);
+        }
+      }
+
       let customerId = draft.selectedCustomerId;
       if (!customerId && draft.customerName.trim()) {
         const customerRes = await apiRequest("POST", "/api/customers", {
@@ -237,6 +249,7 @@ function VehicleSalePane({
       queryClient.invalidateQueries({ queryKey: ["/api/all-vehicle-inventories"] });
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       
       toast({
         title: "Sale Created",

@@ -285,7 +285,11 @@ export class DatabaseStorage implements IStorage {
         purchaseId: purchase.id,
       });
 
-      await this.updateProductStock(item.productId, item.quantity, 'in');
+      // Only update product stock if no vehicle is specified
+      // When vehicle is specified, loadVehicleInventory handles stock update
+      if (!insertPurchase.vehicleId) {
+        await this.updateProductStock(item.productId, item.quantity, 'in');
+      }
 
       await db.insert(stockMovements).values({
         productId: item.productId,
@@ -339,7 +343,11 @@ export class DatabaseStorage implements IStorage {
         invoiceId: invoice.id,
       });
 
-      await this.updateProductStock(item.productId, item.quantity, 'out');
+      // Only update product stock if no vehicle is specified
+      // When vehicle is specified, deductVehicleInventory handles stock update
+      if (!insertInvoice.vehicleId) {
+        await this.updateProductStock(item.productId, item.quantity, 'out');
+      }
 
       await db.insert(stockMovements).values({
         productId: item.productId,
