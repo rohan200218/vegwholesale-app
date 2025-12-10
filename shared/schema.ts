@@ -110,6 +110,8 @@ export const invoices = pgTable("invoices", {
   hamaliChargeAmount: real("halal_charge_amount").default(0),
   hamaliPaidByCash: boolean("hamali_paid_by_cash").notNull().default(false),
   totalKgWeight: real("total_kg_weight").default(0),
+  bags: integer("bags").default(0),
+  hamaliRatePerBag: real("hamali_rate_per_bag").default(0),
   grandTotal: real("grand_total").notNull(),
   status: text("status").notNull().default("pending"),
 });

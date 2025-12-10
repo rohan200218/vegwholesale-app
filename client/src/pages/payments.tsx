@@ -149,11 +149,13 @@ export default function Payments() {
       
       const initialEdited: Record<string, EditedInvoice> = {};
       invoicesWithItems.forEach(inv => {
+        const existingBags = (inv as any).bags || 0;
+        const existingRatePerBag = (inv as any).hamaliRatePerBag || 0;
         const existingHamali = inv.hamaliChargeAmount || 0;
         initialEdited[inv.id] = {
           invoiceId: inv.id,
-          bags: existingHamali > 0 ? 1 : 0,
-          ratePerBag: existingHamali,
+          bags: existingBags,
+          ratePerBag: existingRatePerBag,
           hamaliChargeAmount: existingHamali,
           items: inv.items.map(item => ({
             itemId: item.id,
@@ -204,9 +206,22 @@ export default function Payments() {
     setEditedInvoices(prev => {
       const invoice = prev[invoiceId];
       if (!invoice) return prev;
+      const newHamali = newBags * invoice.ratePerBag;
       return {
         ...prev,
-        [invoiceId]: { ...invoice, bags: newBags },
+        [invoiceId]: { ...invoice, bags: newBags, hamaliChargeAmount: newHamali },
+      };
+    });
+  };
+
+  const updateHamaliRate = (invoiceId: string, newRate: number) => {
+    setEditedInvoices(prev => {
+      const invoice = prev[invoiceId];
+      if (!invoice) return prev;
+      const newHamali = invoice.bags * newRate;
+      return {
+        ...prev,
+        [invoiceId]: { ...invoice, ratePerBag: newRate, hamaliChargeAmount: newHamali },
       };
     });
   };
@@ -246,6 +261,8 @@ export default function Payments() {
         await apiRequest("PATCH", `/api/invoices/${invoiceId}`, {
           subtotal: totals.subtotal,
           hamaliChargeAmount: edited.hamaliChargeAmount,
+          bags: edited.bags,
+          hamaliRatePerBag: edited.ratePerBag,
           grandTotal: totals.grandTotal,
         });
         
@@ -897,17 +914,14 @@ export default function Payments() {
                                         <TableHead className="text-xs">Product</TableHead>
                                         <TableHead className="text-xs text-center">Qty</TableHead>
                                         <TableHead className="text-xs text-center">Price/Unit</TableHead>
-                                        <TableHead className="text-xs text-center">Bags</TableHead>
-                                        <TableHead className="text-xs text-center">Hamali</TableHead>
                                         <TableHead className="text-xs text-right">Total</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {invoice.items.map((item, index) => {
+                                      {invoice.items.map((item) => {
                                         const editedItem = edited?.items.find(e => e.itemId === item.id);
                                         const currentPrice = editedItem?.unitPrice ?? item.unitPrice;
                                         const currentTotal = editedItem?.total ?? item.total;
-                                        const isFirstRow = index === 0;
                                         
                                         return (
                                           <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
@@ -922,28 +936,6 @@ export default function Payments() {
                                                 data-testid={`input-price-${item.id}`}
                                               />
                                             </TableCell>
-                                            <TableCell className="text-center">
-                                              {isFirstRow ? (
-                                                <Input
-                                                  type="number"
-                                                  className="h-7 w-16 text-center text-sm mx-auto"
-                                                  value={edited?.bags ?? 0}
-                                                  onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
-                                                  data-testid={`input-bags-${invoice.id}`}
-                                                />
-                                              ) : null}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                              {isFirstRow ? (
-                                                <Input
-                                                  type="number"
-                                                  className="h-7 w-20 text-center text-sm mx-auto"
-                                                  value={edited?.hamaliChargeAmount ?? 0}
-                                                  onChange={(e) => updateHamaliAmount(invoice.id, parseFloat(e.target.value) || 0)}
-                                                  data-testid={`input-hamali-${invoice.id}`}
-                                                />
-                                              ) : null}
-                                            </TableCell>
                                             <TableCell className="text-sm text-right font-mono">
                                               {currentTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                                             </TableCell>
@@ -952,6 +944,31 @@ export default function Payments() {
                                       })}
                                     </TableBody>
                                   </Table>
+                                  
+                                  <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
+                                    <span className="text-xs text-muted-foreground">Hamali:</span>
+                                    <Input
+                                      type="number"
+                                      className="h-7 w-16 text-center text-sm"
+                                      value={edited?.bags ?? 0}
+                                      onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
+                                      placeholder="Bags"
+                                      data-testid={`input-bags-${invoice.id}`}
+                                    />
+                                    <span className="text-xs">bags ×</span>
+                                    <Input
+                                      type="number"
+                                      className="h-7 w-16 text-center text-sm"
+                                      value={edited?.ratePerBag ?? 0}
+                                      onChange={(e) => updateHamaliRate(invoice.id, parseFloat(e.target.value) || 0)}
+                                      placeholder="₹/bag"
+                                      data-testid={`input-rate-${invoice.id}`}
+                                    />
+                                    <span className="text-xs">=</span>
+                                    <span className="text-sm font-medium font-mono">
+                                      ₹{(edited?.hamaliChargeAmount ?? 0).toFixed(0)}
+                                    </span>
+                                  </div>
 
                                   <div className="flex items-center justify-end pt-2 border-t gap-4 text-sm">
                                     <span className="text-muted-foreground">

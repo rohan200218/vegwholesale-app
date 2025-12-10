@@ -310,6 +310,8 @@ export async function registerRoutes(
     hamaliChargeAmount: z.number().optional(),
     hamaliPaidByCash: z.boolean().optional(),
     totalKgWeight: z.number().optional(),
+    bags: z.number().optional(),
+    hamaliRatePerBag: z.number().optional(),
     grandTotal: z.number(),
     status: z.string().optional(),
     items: z.array(

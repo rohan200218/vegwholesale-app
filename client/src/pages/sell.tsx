@@ -61,6 +61,7 @@ interface SaleDraft {
   customerName: string;
   selectedCustomerId: string;
   hamaliCharge: number;
+  hamaliRatePerBag: number;
 }
 
 interface VehicleSalePaneProps {
@@ -109,27 +110,31 @@ function VehicleSalePane({
     
     if (!product || !inv) return;
 
+    let newProducts: SaleProduct[];
     if (exists) {
-      onUpdateDraft({
-        ...draft,
-        products: draft.products.map(p =>
-          p.productId === productId ? { ...p, [field]: Math.max(0, value) } : p
-        ),
-      });
+      newProducts = draft.products.map(p =>
+        p.productId === productId ? { ...p, [field]: Math.max(0, value) } : p
+      );
     } else {
-      onUpdateDraft({
-        ...draft,
-        products: [...draft.products, {
-          productId,
-          productName: product.name,
-          unit: product.unit || "Units",
-          weight: field === 'weight' ? value : 0,
-          bags: field === 'bags' ? value : 0,
-          price: field === 'price' ? value : (product.salePrice || 0),
-          available: inv.quantity,
-        }],
-      });
+      newProducts = [...draft.products, {
+        productId,
+        productName: product.name,
+        unit: product.unit || "Units",
+        weight: field === 'weight' ? value : 0,
+        bags: field === 'bags' ? value : 0,
+        price: field === 'price' ? value : (product.salePrice || 0),
+        available: inv.quantity,
+      }];
     }
+
+    const newTotalBags = newProducts.reduce((sum, p) => sum + (p.bags || 0), 0);
+    const newHamaliCharge = newTotalBags * draft.hamaliRatePerBag;
+
+    onUpdateDraft({
+      ...draft,
+      products: newProducts,
+      hamaliCharge: newHamaliCharge,
+    });
   };
 
   const handleCustomerChange = (value: string) => {
@@ -217,6 +222,8 @@ function VehicleSalePane({
         hamaliChargeAmount: draft.hamaliCharge,
         hamaliPaidByCash: false,
         totalKgWeight: saleTotalWeight,
+        bags: saleTotalBags,
+        hamaliRatePerBag: draft.hamaliRatePerBag,
         grandTotal: subtotal + draft.hamaliCharge,
         items,
       });
@@ -376,17 +383,27 @@ function VehicleSalePane({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Hamali Charge:</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">Hamali:</span>
+          <span className="text-xs text-muted-foreground">{saleTotalBags} bags ×</span>
           <Input
             type="number"
             min="0"
-            className="h-6 text-xs w-20 px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            value={draft.hamaliCharge || ""}
-            placeholder="0"
-            onChange={(e) => onUpdateDraft({ ...draft, hamaliCharge: parseFloat(e.target.value) || 0 })}
-            data-testid={`input-hamali-${vehicle.id}`}
+            className="h-6 text-xs w-16 px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            value={draft.hamaliRatePerBag || ""}
+            placeholder="₹/bag"
+            onChange={(e) => {
+              const rate = parseFloat(e.target.value) || 0;
+              onUpdateDraft({ 
+                ...draft, 
+                hamaliRatePerBag: rate,
+                hamaliCharge: saleTotalBags * rate
+              });
+            }}
+            data-testid={`input-hamali-rate-${vehicle.id}`}
           />
+          <span className="text-xs">=</span>
+          <span className="text-xs font-medium">₹{draft.hamaliCharge.toFixed(0)}</span>
         </div>
 
         <div className="pt-2 border-t space-y-1">
@@ -728,6 +745,7 @@ export default function Sell() {
           customerName: "",
           selectedCustomerId: "",
           hamaliCharge: 0,
+          hamaliRatePerBag: 0,
         },
       }));
     }
