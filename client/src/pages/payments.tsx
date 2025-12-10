@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -28,14 +29,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Plus, CreditCard, Wallet, Trash2 } from "lucide-react";
-import type { Vendor, Customer, VendorPayment, CustomerPayment, HamaliCashPayment } from "@shared/schema";
+import { Plus, CreditCard, Wallet, Trash2, ChevronRight, Edit, Save, X } from "lucide-react";
+import type { Vendor, Customer, VendorPayment, CustomerPayment, HamaliCashPayment, Invoice, InvoiceItem, Product } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type VendorWithBalance = Vendor & { totalPurchases: number; totalPayments: number; balance: number };
 type CustomerWithBalance = Customer & { totalInvoices: number; totalPayments: number; balance: number };
+
+interface InvoiceWithItems extends Invoice {
+  items: (InvoiceItem & { product?: Product })[];
+  originalSubtotal: number;
+  originalHamali: number;
+  originalGrandTotal: number;
+}
+
+interface EditedItem {
+  itemId: string;
+  unitPrice: number;
+  quantity: number;
+  total: number;
+}
+
+interface EditedInvoice {
+  invoiceId: string;
+  hamaliChargeAmount: number;
+  items: EditedItem[];
+}
 
 export default function Payments() {
   const { toast } = useToast();
@@ -50,6 +72,11 @@ export default function Payments() {
   const [hamaliAmount, setHamaliAmount] = useState("");
   const [hamaliCustomerId, setHamaliCustomerId] = useState<string>("none");
   const [hamaliNotes, setHamaliNotes] = useState("");
+  
+  const [customerInvoices, setCustomerInvoices] = useState<InvoiceWithItems[]>([]);
+  const [editedInvoices, setEditedInvoices] = useState<Record<string, EditedInvoice>>({});
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [step, setStep] = useState<'select' | 'review'>('select');
 
   const { data: vendors = [], isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ["/api/vendors"],
@@ -57,6 +84,10 @@ export default function Payments() {
 
   const { data: customers = [], isLoading: customersLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
+  });
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ["/api/products"],
   });
 
   const { data: vendorBalances = [], isLoading: vendorBalancesLoading } = useQuery<VendorWithBalance[]>({
@@ -77,6 +108,134 @@ export default function Payments() {
 
   const { data: hamaliCashPayments = [] } = useQuery<HamaliCashPayment[]>({
     queryKey: ["/api/hamali-cash"],
+  });
+
+  const loadCustomerInvoices = async (customerId: string) => {
+    setLoadingInvoices(true);
+    try {
+      const invoicesRes = await fetch(`/api/customers/${customerId}/invoices`);
+      const invoices: Invoice[] = await invoicesRes.json();
+      
+      const invoicesWithItems: InvoiceWithItems[] = await Promise.all(
+        invoices.map(async (invoice) => {
+          const itemsRes = await fetch(`/api/invoices/${invoice.id}/items`);
+          const items: InvoiceItem[] = await itemsRes.json();
+          const itemsWithProducts = items.map(item => ({
+            ...item,
+            product: products.find(p => p.id === item.productId),
+          }));
+          return {
+            ...invoice,
+            items: itemsWithProducts,
+            originalSubtotal: invoice.subtotal,
+            originalHamali: invoice.hamaliChargeAmount || 0,
+            originalGrandTotal: invoice.grandTotal,
+          };
+        })
+      );
+      
+      setCustomerInvoices(invoicesWithItems);
+      
+      const initialEdited: Record<string, EditedInvoice> = {};
+      invoicesWithItems.forEach(inv => {
+        initialEdited[inv.id] = {
+          invoiceId: inv.id,
+          hamaliChargeAmount: inv.hamaliChargeAmount || 0,
+          items: inv.items.map(item => ({
+            itemId: item.id,
+            unitPrice: item.unitPrice,
+            quantity: item.quantity,
+            total: item.total,
+          })),
+        };
+      });
+      setEditedInvoices(initialEdited);
+      setStep('review');
+    } catch (error) {
+      console.error("Error loading customer invoices:", error);
+      toast({ title: "Error", description: "Failed to load customer invoices", variant: "destructive" });
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
+  const handleCustomerSelect = (customerId: string) => {
+    setSelectedCustomer(customerId);
+    if (customerId) {
+      loadCustomerInvoices(customerId);
+    }
+  };
+
+  const updateItemPrice = (invoiceId: string, itemId: string, newPrice: number) => {
+    setEditedInvoices(prev => {
+      const invoice = prev[invoiceId];
+      if (!invoice) return prev;
+      
+      const updatedItems = invoice.items.map(item => {
+        if (item.itemId === itemId) {
+          const newTotal = item.quantity * newPrice;
+          return { ...item, unitPrice: newPrice, total: newTotal };
+        }
+        return item;
+      });
+      
+      return {
+        ...prev,
+        [invoiceId]: { ...invoice, items: updatedItems },
+      };
+    });
+  };
+
+  const updateHamaliCharge = (invoiceId: string, newAmount: number) => {
+    setEditedInvoices(prev => ({
+      ...prev,
+      [invoiceId]: { ...prev[invoiceId], hamaliChargeAmount: newAmount },
+    }));
+  };
+
+  const getInvoiceTotal = (invoiceId: string) => {
+    const edited = editedInvoices[invoiceId];
+    if (!edited) return { subtotal: 0, hamali: 0, grandTotal: 0 };
+    
+    const subtotal = edited.items.reduce((sum, item) => sum + item.total, 0);
+    const hamali = edited.hamaliChargeAmount;
+    return { subtotal, hamali, grandTotal: subtotal + hamali };
+  };
+
+  const grandTotalAllInvoices = useMemo(() => {
+    return Object.keys(editedInvoices).reduce((sum, invoiceId) => {
+      return sum + getInvoiceTotal(invoiceId).grandTotal;
+    }, 0);
+  }, [editedInvoices]);
+
+  const saveInvoiceChanges = useMutation({
+    mutationFn: async () => {
+      for (const invoiceId of Object.keys(editedInvoices)) {
+        const edited = editedInvoices[invoiceId];
+        const totals = getInvoiceTotal(invoiceId);
+        
+        await apiRequest("PATCH", `/api/invoices/${invoiceId}`, {
+          subtotal: totals.subtotal,
+          hamaliChargeAmount: edited.hamaliChargeAmount,
+          grandTotal: totals.grandTotal,
+        });
+        
+        for (const item of edited.items) {
+          await apiRequest("PATCH", `/api/invoice-items/${item.itemId}`, {
+            unitPrice: item.unitPrice,
+            total: item.total,
+          });
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reports/customer-balances"] });
+      toast({ title: "Changes saved", description: "Invoice changes have been saved successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save invoice changes.", variant: "destructive" });
+    },
   });
 
   const createVendorPayment = useMutation({
@@ -103,9 +262,9 @@ export default function Payments() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/customer-payments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/reports/customer-balances"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       setCustomerDialogOpen(false);
-      setSelectedCustomer("");
-      setCustomerPaymentAmount("");
+      resetCustomerDialog();
       toast({ title: "Payment recorded", description: "Customer payment has been recorded successfully." });
     },
     onError: () => {
@@ -145,6 +304,21 @@ export default function Payments() {
     },
   });
 
+  const resetCustomerDialog = () => {
+    setSelectedCustomer("");
+    setCustomerPaymentAmount("");
+    setCustomerInvoices([]);
+    setEditedInvoices({});
+    setStep('select');
+  };
+
+  const handleCustomerDialogClose = (open: boolean) => {
+    setCustomerDialogOpen(open);
+    if (!open) {
+      resetCustomerDialog();
+    }
+  };
+
   const handleVendorPayment = () => {
     if (!selectedVendor || !vendorPaymentAmount) return;
     createVendorPayment.mutate({
@@ -155,11 +329,14 @@ export default function Payments() {
     });
   };
 
-  const handleCustomerPayment = () => {
-    if (!selectedCustomer || !customerPaymentAmount) return;
+  const handleFinalizeAndPay = async () => {
+    if (!selectedCustomer) return;
+    
+    await saveInvoiceChanges.mutateAsync();
+    
     createCustomerPayment.mutate({
       customerId: selectedCustomer,
-      amount: parseFloat(customerPaymentAmount),
+      amount: grandTotalAllInvoices,
       paymentMethod,
       date: new Date().toISOString().split("T")[0],
     });
@@ -392,67 +569,208 @@ export default function Payments() {
 
         <TabsContent value="customers" className="space-y-4">
           <div className="flex justify-end">
-            <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
+            <Dialog open={customerDialogOpen} onOpenChange={handleCustomerDialogClose}>
               <DialogTrigger asChild>
                 <Button data-testid="button-add-customer-payment">
                   <Plus className="h-4 w-4 mr-2" />
                   Record Payment
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                 <DialogHeader>
-                  <DialogTitle>Record Customer Payment</DialogTitle>
-                  <DialogDescription>Record a payment received from a customer</DialogDescription>
+                  <DialogTitle>
+                    {step === 'select' ? 'Select Customer' : `Review & Finalize - ${getCustomerName(selectedCustomer)}`}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {step === 'select' 
+                      ? 'Select a customer to view and edit their invoices' 
+                      : 'Review invoice details, edit prices if needed, then finalize payment'}
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Customer</Label>
-                    <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                      <SelectTrigger data-testid="select-customer">
-                        <SelectValue placeholder="Select customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                
+                {step === 'select' && (
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label>Customer</Label>
+                      <Select value={selectedCustomer} onValueChange={handleCustomerSelect}>
+                        <SelectTrigger data-testid="select-customer">
+                          <SelectValue placeholder="Select customer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              {customer.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {loadingInvoices && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Skeleton className="h-4 w-4 animate-spin rounded-full" />
+                        Loading invoices...
+                      </div>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Amount</Label>
-                    <Input
-                      type="number"
-                      value={customerPaymentAmount}
-                      onChange={(e) => setCustomerPaymentAmount(e.target.value)}
-                      placeholder="Enter amount"
-                      data-testid="input-customer-payment-amount"
-                    />
+                )}
+
+                {step === 'review' && (
+                  <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setStep('select')}>
+                        <X className="h-4 w-4 mr-1" /> Back
+                      </Button>
+                      <Badge variant="outline">{customerInvoices.length} Invoice(s)</Badge>
+                    </div>
+
+                    <ScrollArea className="flex-1 border rounded-md">
+                      <div className="p-4 space-y-6">
+                        {customerInvoices.length === 0 ? (
+                          <div className="text-center text-muted-foreground py-8">
+                            No invoices found for this customer
+                          </div>
+                        ) : (
+                          customerInvoices.map((invoice) => {
+                            const edited = editedInvoices[invoice.id];
+                            const totals = getInvoiceTotal(invoice.id);
+                            
+                            return (
+                              <Card key={invoice.id} className="overflow-hidden" data-testid={`card-invoice-${invoice.id}`}>
+                                <CardHeader className="py-3 bg-muted/30">
+                                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                      <CardTitle className="text-sm">{invoice.invoiceNumber}</CardTitle>
+                                      <Badge variant="secondary" className="text-xs">{invoice.date}</Badge>
+                                    </div>
+                                    <Badge variant={invoice.status === 'completed' ? 'default' : 'outline'}>
+                                      {invoice.status}
+                                    </Badge>
+                                  </div>
+                                </CardHeader>
+                                <CardContent className="p-3 space-y-3">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead className="text-xs">Product</TableHead>
+                                        <TableHead className="text-xs text-center">Qty</TableHead>
+                                        <TableHead className="text-xs text-right">Price/Unit</TableHead>
+                                        <TableHead className="text-xs text-right">Total</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {invoice.items.map((item) => {
+                                        const editedItem = edited?.items.find(e => e.itemId === item.id);
+                                        const currentPrice = editedItem?.unitPrice ?? item.unitPrice;
+                                        const currentTotal = editedItem?.total ?? item.total;
+                                        
+                                        return (
+                                          <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
+                                            <TableCell className="text-sm">{item.product?.name || 'Unknown'}</TableCell>
+                                            <TableCell className="text-sm text-center">{item.quantity}</TableCell>
+                                            <TableCell className="text-right">
+                                              <Input
+                                                type="number"
+                                                className="h-7 w-20 text-right text-sm ml-auto"
+                                                value={currentPrice}
+                                                onChange={(e) => updateItemPrice(invoice.id, item.id, parseFloat(e.target.value) || 0)}
+                                                data-testid={`input-price-${item.id}`}
+                                              />
+                                            </TableCell>
+                                            <TableCell className="text-sm text-right font-mono">
+                                              {currentTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+
+                                  <div className="flex items-center justify-between pt-2 border-t gap-2 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                      <Label className="text-xs text-muted-foreground">Hamali Charge:</Label>
+                                      <Input
+                                        type="number"
+                                        className="h-7 w-24 text-sm"
+                                        value={edited?.hamaliChargeAmount ?? 0}
+                                        onChange={(e) => updateHamaliCharge(invoice.id, parseFloat(e.target.value) || 0)}
+                                        data-testid={`input-hamali-${invoice.id}`}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-4 text-sm">
+                                      <span className="text-muted-foreground">
+                                        Subtotal: <span className="font-mono">{totals.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                      </span>
+                                      <span className="font-semibold">
+                                        Total: <span className="font-mono text-primary">{totals.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                      </span>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ScrollArea>
+
+                    <div className="pt-4 border-t space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg font-medium">Grand Total (All Invoices):</span>
+                        <span className="text-2xl font-bold font-mono text-primary" data-testid="text-grand-total">
+                          {grandTotalAllInvoices.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Payment Method</Label>
+                          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                            <SelectTrigger data-testid="select-customer-payment-method">
+                              <SelectValue placeholder="Select method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="cash">Cash</SelectItem>
+                              <SelectItem value="bank">Bank Transfer</SelectItem>
+                              <SelectItem value="upi">UPI</SelectItem>
+                              <SelectItem value="cheque">Cheque</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Payment Amount</Label>
+                          <Input
+                            type="number"
+                            value={customerPaymentAmount || grandTotalAllInvoices}
+                            onChange={(e) => setCustomerPaymentAmount(e.target.value)}
+                            placeholder="Enter amount"
+                            data-testid="input-customer-payment-amount"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => saveInvoiceChanges.mutate()}
+                          disabled={saveInvoiceChanges.isPending}
+                          className="flex-1"
+                          data-testid="button-save-changes"
+                        >
+                          <Save className="h-4 w-4 mr-2" />
+                          {saveInvoiceChanges.isPending ? "Saving..." : "Save Changes Only"}
+                        </Button>
+                        <Button
+                          onClick={handleFinalizeAndPay}
+                          disabled={customerInvoices.length === 0 || createCustomerPayment.isPending || saveInvoiceChanges.isPending}
+                          className="flex-1"
+                          data-testid="button-finalize-payment"
+                        >
+                          {createCustomerPayment.isPending ? "Processing..." : "Finalize & Record Payment"}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Payment Method</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger data-testid="select-customer-payment-method">
-                        <SelectValue placeholder="Select method" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cash">Cash</SelectItem>
-                        <SelectItem value="bank">Bank Transfer</SelectItem>
-                        <SelectItem value="upi">UPI</SelectItem>
-                        <SelectItem value="cheque">Cheque</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    onClick={handleCustomerPayment}
-                    disabled={!selectedCustomer || !customerPaymentAmount || createCustomerPayment.isPending}
-                    className="w-full"
-                    data-testid="button-submit-customer-payment"
-                  >
-                    {createCustomerPayment.isPending ? "Recording..." : "Record Payment"}
-                  </Button>
-                </div>
+                )}
               </DialogContent>
             </Dialog>
           </div>
