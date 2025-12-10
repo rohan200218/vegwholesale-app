@@ -79,6 +79,11 @@ export default function Payments() {
   const [customerInvoices, setCustomerInvoices] = useState<InvoiceWithItems[]>([]);
   const [editedInvoices, setEditedInvoices] = useState<Record<string, EditedInvoice>>({});
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [customerSummary, setCustomerSummary] = useState<{
+    totalInvoices: number;
+    totalPayments: number;
+    remainingBalance: number;
+  } | null>(null);
   const [step, setStep] = useState<'select' | 'review' | 'completed'>('select');
   const [completedPaymentData, setCompletedPaymentData] = useState<{
     customerName: string;
@@ -126,7 +131,12 @@ export default function Payments() {
     setLoadingInvoices(true);
     try {
       const invoicesRes = await fetch(`/api/customers/${customerId}/invoices`);
-      const invoices: Invoice[] = await invoicesRes.json();
+      const data = await invoicesRes.json();
+      const invoices: Invoice[] = data.invoices;
+      const summary = data.summary;
+      
+      setCustomerSummary(summary);
+      setCustomerPaymentAmount(summary.remainingBalance > 0 ? String(summary.remainingBalance) : "");
       
       const invoicesWithItems: InvoiceWithItems[] = await Promise.all(
         invoices.map(async (invoice) => {
@@ -368,6 +378,7 @@ export default function Payments() {
     setStep('select');
     setCompletedPaymentData(null);
     setCustomerPaymentMethod("cash");
+    setCustomerSummary(null);
   };
 
   const handlePrintReceipt = () => {
@@ -880,11 +891,26 @@ export default function Payments() {
 
                 {step === 'review' && (
                   <div className="flex-1 overflow-hidden flex flex-col space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setStep('select')}>
-                        <X className="h-4 w-4 mr-1" /> Back
-                      </Button>
-                      <Badge variant="outline">{customerInvoices.length} Invoice(s)</Badge>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => setStep('select')}>
+                          <X className="h-4 w-4 mr-1" /> Back
+                        </Button>
+                        <Badge variant="outline">{customerInvoices.length} Invoice(s)</Badge>
+                      </div>
+                      {customerSummary && (
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-muted-foreground">
+                            Total: <span className="font-mono">{customerSummary.totalInvoices.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                          </span>
+                          <span className="text-muted-foreground">
+                            Paid: <span className="font-mono text-green-600">{customerSummary.totalPayments.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                          </span>
+                          <span className={customerSummary.remainingBalance > 0 ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
+                            Due: <span className="font-mono">{customerSummary.remainingBalance.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                          </span>
+                        </div>
+                      )}
                     </div>
 
                     <ScrollArea className="flex-1 border rounded-md">
@@ -1003,11 +1029,27 @@ export default function Payments() {
                         );
                       })}
                       
-                      <div className="flex items-center justify-between pt-2">
-                        <span className="text-lg font-medium">Grand Total (All Invoices):</span>
-                        <span className="text-2xl font-bold font-mono text-primary" data-testid="text-grand-total">
-                          {grandTotalAllInvoices.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                        </span>
+                      <div className="space-y-2 pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-base text-muted-foreground">Grand Total (All Invoices):</span>
+                          <span className="text-lg font-bold font-mono" data-testid="text-grand-total">
+                            {grandTotalAllInvoices.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          </span>
+                        </div>
+                        {customerSummary && customerSummary.totalPayments > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-base text-muted-foreground">Already Paid:</span>
+                            <span className="text-lg font-mono text-green-600">
+                              -{customerSummary.totalPayments.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between border-t pt-2">
+                          <span className="text-lg font-medium">Remaining Balance:</span>
+                          <span className={`text-2xl font-bold font-mono ${customerSummary && customerSummary.remainingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {(customerSummary?.remainingBalance ?? grandTotalAllInvoices).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
@@ -1026,12 +1068,12 @@ export default function Payments() {
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>Payment Amount</Label>
+                          <Label>Payment Amount (Enter amount to pay now)</Label>
                           <Input
                             type="number"
-                            value={customerPaymentAmount || grandTotalAllInvoices}
+                            value={customerPaymentAmount}
                             onChange={(e) => setCustomerPaymentAmount(e.target.value)}
-                            placeholder="Enter amount"
+                            placeholder={`Max: ${(customerSummary?.remainingBalance ?? grandTotalAllInvoices).toLocaleString("en-IN")}`}
                             data-testid="input-customer-payment-amount"
                           />
                         </div>

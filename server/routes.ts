@@ -342,7 +342,15 @@ export async function registerRoutes(
   app.get("/api/customers/:id/invoices", async (req, res) => {
     try {
       const invoices = await storage.getInvoicesByCustomer(req.params.id);
-      res.json(invoices);
+      const balance = await storage.getCustomerBalance(req.params.id);
+      res.json({
+        invoices,
+        summary: {
+          totalInvoices: balance.totalInvoices,
+          totalPayments: balance.totalPayments,
+          remainingBalance: balance.balance,
+        }
+      });
     } catch (error) {
       console.error("Error getting customer invoices:", error);
       res.status(500).json({ error: "Failed to get customer invoices" });
