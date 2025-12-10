@@ -47,6 +47,14 @@ The application is built with a modern web stack:
 -   **Recharts**: Charting library for data visualization in reports and dashboard.
 
 ## Recent Changes
+- December 10, 2025: Product stock synchronization with vehicle operations
+  - Loading products onto vehicles (Sell page) now increases product.currentStock
+  - Sales from vehicles now decrease product.currentStock
+  - Products tab reflects real-time stock levels after vehicle loading/sales
+  - Stock validation prevents sales when product stock is 0 or insufficient
+  - Clear error messages show available vs requested quantities
+  - Frontend cache invalidates products after sales for immediate UI refresh
+
 - December 9, 2025: Multi-vehicle selection on Sell page
   - Select multiple vehicles simultaneously (click to toggle selection)
   - Each selected vehicle shows independent Customer Sale form (VehicleSalePane component)
