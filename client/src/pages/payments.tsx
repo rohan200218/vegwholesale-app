@@ -55,6 +55,8 @@ interface EditedItem {
 
 interface EditedInvoice {
   invoiceId: string;
+  bags: number;
+  ratePerBag: number;
   hamaliChargeAmount: number;
   items: EditedItem[];
 }
@@ -147,9 +149,12 @@ export default function Payments() {
       
       const initialEdited: Record<string, EditedInvoice> = {};
       invoicesWithItems.forEach(inv => {
+        const existingHamali = inv.hamaliChargeAmount || 0;
         initialEdited[inv.id] = {
           invoiceId: inv.id,
-          hamaliChargeAmount: inv.hamaliChargeAmount || 0,
+          bags: existingHamali > 0 ? 1 : 0,
+          ratePerBag: existingHamali,
+          hamaliChargeAmount: existingHamali,
           items: inv.items.map(item => ({
             itemId: item.id,
             unitPrice: item.unitPrice,
@@ -195,11 +200,28 @@ export default function Payments() {
     });
   };
 
-  const updateHamaliCharge = (invoiceId: string, newAmount: number) => {
-    setEditedInvoices(prev => ({
-      ...prev,
-      [invoiceId]: { ...prev[invoiceId], hamaliChargeAmount: newAmount },
-    }));
+  const updateHamaliBags = (invoiceId: string, newBags: number) => {
+    setEditedInvoices(prev => {
+      const invoice = prev[invoiceId];
+      if (!invoice) return prev;
+      const hamaliChargeAmount = newBags * invoice.ratePerBag;
+      return {
+        ...prev,
+        [invoiceId]: { ...invoice, bags: newBags, hamaliChargeAmount },
+      };
+    });
+  };
+
+  const updateHamaliRate = (invoiceId: string, newRate: number) => {
+    setEditedInvoices(prev => {
+      const invoice = prev[invoiceId];
+      if (!invoice) return prev;
+      const hamaliChargeAmount = invoice.bags * newRate;
+      return {
+        ...prev,
+        [invoiceId]: { ...invoice, ratePerBag: newRate, hamaliChargeAmount },
+      };
+    });
   };
 
   const getInvoiceTotal = (invoiceId: string) => {
@@ -362,6 +384,8 @@ export default function Payments() {
       }).join('');
       
       const hamali = edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0;
+      const bags = edited?.bags || 0;
+      const ratePerBag = edited?.ratePerBag || 0;
       const subtotal = edited?.items.reduce((s, i) => s + i.total, 0) || inv.subtotal;
       
       return `
@@ -385,7 +409,7 @@ export default function Payments() {
           </table>
           <div style="margin-top: 8px; text-align: right; font-size: 12px;">
             <div>Subtotal: ₹${subtotal.toFixed(2)}</div>
-            <div>Hamali: ₹${hamali.toFixed(2)}</div>
+            <div>Hamali: ${bags} bags × ₹${ratePerBag.toFixed(2)} = ₹${hamali.toFixed(2)}</div>
             <div style="font-weight: bold;">Invoice Total: ₹${(subtotal + hamali).toFixed(2)}</div>
           </div>
         </div>
@@ -825,15 +849,30 @@ export default function Payments() {
                                   </Table>
 
                                   <div className="flex items-center justify-between pt-2 border-t gap-2 flex-wrap">
-                                    <div className="flex items-center gap-2">
-                                      <Label className="text-xs text-muted-foreground">Hamali Charge:</Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 w-24 text-sm"
-                                        value={edited?.hamaliChargeAmount ?? 0}
-                                        onChange={(e) => updateHamaliCharge(invoice.id, parseFloat(e.target.value) || 0)}
-                                        data-testid={`input-hamali-${invoice.id}`}
-                                      />
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <div className="flex items-center gap-1">
+                                        <Label className="text-xs text-muted-foreground">Bags:</Label>
+                                        <Input
+                                          type="number"
+                                          className="h-7 w-16 text-sm"
+                                          value={edited?.bags ?? 0}
+                                          onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
+                                          data-testid={`input-bags-${invoice.id}`}
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <Label className="text-xs text-muted-foreground">Rate/Bag:</Label>
+                                        <Input
+                                          type="number"
+                                          className="h-7 w-20 text-sm"
+                                          value={edited?.ratePerBag ?? 0}
+                                          onChange={(e) => updateHamaliRate(invoice.id, parseFloat(e.target.value) || 0)}
+                                          data-testid={`input-rate-${invoice.id}`}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-muted-foreground">
+                                        Hamali: <span className="font-mono font-medium">{(edited?.hamaliChargeAmount ?? 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                      </span>
                                     </div>
                                     <div className="flex items-center gap-4 text-sm">
                                       <span className="text-muted-foreground">
@@ -943,6 +982,15 @@ export default function Payments() {
                           <span className="font-medium">{completedPaymentData.invoices.length}</span>
                         </div>
                         <div className="flex justify-between text-sm border-t pt-3">
+                          <span className="text-muted-foreground">Total Bags:</span>
+                          <span className="font-medium font-mono">
+                            {completedPaymentData.invoices.reduce((sum, inv) => {
+                              const edited = completedPaymentData.editedInvoices[inv.id];
+                              return sum + (edited?.bags || 0);
+                            }, 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Total Hamali:</span>
                           <span className="font-medium font-mono">
                             {completedPaymentData.invoices.reduce((sum, inv) => {
