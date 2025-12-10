@@ -32,7 +32,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Plus, CreditCard, Wallet, Trash2, ChevronRight, Edit, Save, X } from "lucide-react";
+import { Plus, CreditCard, Wallet, Trash2, ChevronRight, Edit, Save, X, Printer, CheckCircle } from "lucide-react";
 import type { Vendor, Customer, VendorPayment, CustomerPayment, HamaliCashPayment, Invoice, InvoiceItem, Product } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -67,7 +67,8 @@ export default function Payments() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [vendorPaymentAmount, setVendorPaymentAmount] = useState("");
   const [customerPaymentAmount, setCustomerPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [vendorPaymentMethod, setVendorPaymentMethod] = useState("cash");
+  const [customerPaymentMethod, setCustomerPaymentMethod] = useState("cash");
   const [hamaliDialogOpen, setHamaliDialogOpen] = useState(false);
   const [hamaliAmount, setHamaliAmount] = useState("");
   const [hamaliCustomerId, setHamaliCustomerId] = useState<string>("none");
@@ -76,7 +77,15 @@ export default function Payments() {
   const [customerInvoices, setCustomerInvoices] = useState<InvoiceWithItems[]>([]);
   const [editedInvoices, setEditedInvoices] = useState<Record<string, EditedInvoice>>({});
   const [loadingInvoices, setLoadingInvoices] = useState(false);
-  const [step, setStep] = useState<'select' | 'review'>('select');
+  const [step, setStep] = useState<'select' | 'review' | 'completed'>('select');
+  const [completedPaymentData, setCompletedPaymentData] = useState<{
+    customerName: string;
+    amount: number;
+    paymentMethod: string;
+    date: string;
+    invoices: InvoiceWithItems[];
+    editedInvoices: Record<string, EditedInvoice>;
+  } | null>(null);
 
   const { data: vendors = [], isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ["/api/vendors"],
@@ -259,12 +268,20 @@ export default function Payments() {
     mutationFn: async (data: { customerId: string; amount: number; paymentMethod: string; date: string }) => {
       return apiRequest("POST", "/api/customer-payments", data);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/customer-payments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/reports/customer-balances"] });
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-      setCustomerDialogOpen(false);
-      resetCustomerDialog();
+      
+      setCompletedPaymentData({
+        customerName: getCustomerName(variables.customerId),
+        amount: variables.amount,
+        paymentMethod: variables.paymentMethod,
+        date: variables.date,
+        invoices: customerInvoices,
+        editedInvoices: editedInvoices,
+      });
+      setStep('completed');
       toast({ title: "Payment recorded", description: "Customer payment has been recorded successfully." });
     },
     onError: () => {
@@ -310,6 +327,126 @@ export default function Payments() {
     setCustomerInvoices([]);
     setEditedInvoices({});
     setStep('select');
+    setCompletedPaymentData(null);
+    setCustomerPaymentMethod("cash");
+  };
+
+  const handlePrintReceipt = () => {
+    if (!completedPaymentData) return;
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({ title: "Error", description: "Please allow popups to print receipt", variant: "destructive" });
+      return;
+    }
+
+    const totalHamali = completedPaymentData.invoices.reduce((sum, inv) => {
+      const edited = completedPaymentData.editedInvoices[inv.id];
+      return sum + (edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0);
+    }, 0);
+
+    const invoiceDetails = completedPaymentData.invoices.map(inv => {
+      const edited = completedPaymentData.editedInvoices[inv.id];
+      const itemsHtml = inv.items.map(item => {
+        const editedItem = edited?.items.find(e => e.itemId === item.id);
+        const price = editedItem?.unitPrice ?? item.unitPrice;
+        const total = editedItem?.total ?? item.total;
+        return `
+          <tr>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #eee;">${item.product?.name || 'Unknown'}</td>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #eee; text-align: right;">₹${price.toFixed(2)}</td>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #eee; text-align: right;">₹${total.toFixed(2)}</td>
+          </tr>
+        `;
+      }).join('');
+      
+      const hamali = edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0;
+      const subtotal = edited?.items.reduce((s, i) => s + i.total, 0) || inv.subtotal;
+      
+      return `
+        <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <strong>${inv.invoiceNumber}</strong>
+            <span>${inv.date}</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="background: #f5f5f5;">
+                <th style="padding: 4px 8px; text-align: left;">Product</th>
+                <th style="padding: 4px 8px; text-align: center;">Qty</th>
+                <th style="padding: 4px 8px; text-align: right;">Price</th>
+                <th style="padding: 4px 8px; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+          <div style="margin-top: 8px; text-align: right; font-size: 12px;">
+            <div>Subtotal: ₹${subtotal.toFixed(2)}</div>
+            <div>Hamali: ₹${hamali.toFixed(2)}</div>
+            <div style="font-weight: bold;">Invoice Total: ₹${(subtotal + hamali).toFixed(2)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payment Receipt</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+          .header h1 { margin: 0; color: #333; }
+          .header p { margin: 5px 0; color: #666; }
+          .details { display: flex; justify-content: space-between; margin-bottom: 20px; }
+          .details div { flex: 1; }
+          .total-section { margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; }
+          .grand-total { font-size: 24px; font-weight: bold; color: #2e7d32; text-align: right; }
+          @media print { body { print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Payment Receipt</h1>
+          <p>VegWholesale Business</p>
+        </div>
+        
+        <div class="details">
+          <div>
+            <strong>Customer:</strong> ${completedPaymentData.customerName}<br>
+            <strong>Date:</strong> ${completedPaymentData.date}<br>
+            <strong>Payment Method:</strong> ${completedPaymentData.paymentMethod.toUpperCase()}
+          </div>
+        </div>
+        
+        <h3>Invoice Details</h3>
+        ${invoiceDetails}
+        
+        <div class="total-section">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span>Total Hamali:</span>
+            <span>₹${totalHamali.toFixed(2)}</span>
+          </div>
+          <div class="grand-total">
+            <span>Amount Paid: ₹${completedPaymentData.amount.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 40px; color: #888; font-size: 12px;">
+          Thank you for your business!
+        </div>
+        
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const handleCustomerDialogClose = (open: boolean) => {
@@ -324,7 +461,7 @@ export default function Payments() {
     createVendorPayment.mutate({
       vendorId: selectedVendor,
       amount: parseFloat(vendorPaymentAmount),
-      paymentMethod,
+      paymentMethod: vendorPaymentMethod,
       date: new Date().toISOString().split("T")[0],
     });
   };
@@ -337,7 +474,7 @@ export default function Payments() {
     createCustomerPayment.mutate({
       customerId: selectedCustomer,
       amount: grandTotalAllInvoices,
-      paymentMethod,
+      paymentMethod: customerPaymentMethod,
       date: new Date().toISOString().split("T")[0],
     });
   };
@@ -461,7 +598,7 @@ export default function Payments() {
                   </div>
                   <div className="space-y-2">
                     <Label>Payment Method</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <Select value={vendorPaymentMethod} onValueChange={setVendorPaymentMethod}>
                       <SelectTrigger data-testid="select-payment-method">
                         <SelectValue placeholder="Select method" />
                       </SelectTrigger>
@@ -579,12 +716,14 @@ export default function Payments() {
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle>
-                    {step === 'select' ? 'Select Customer' : `Review & Finalize - ${getCustomerName(selectedCustomer)}`}
+                    {step === 'select' && 'Select Customer'}
+                    {step === 'review' && `Review & Finalize - ${getCustomerName(selectedCustomer)}`}
+                    {step === 'completed' && 'Payment Completed'}
                   </DialogTitle>
                   <DialogDescription>
-                    {step === 'select' 
-                      ? 'Select a customer to view and edit their invoices' 
-                      : 'Review invoice details, edit prices if needed, then finalize payment'}
+                    {step === 'select' && 'Select a customer to view and edit their invoices'}
+                    {step === 'review' && 'Review invoice details, edit prices if needed, then finalize payment'}
+                    {step === 'completed' && 'Payment has been recorded successfully'}
                   </DialogDescription>
                 </DialogHeader>
                 
@@ -724,7 +863,7 @@ export default function Payments() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Payment Method</Label>
-                          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                          <Select value={customerPaymentMethod} onValueChange={setCustomerPaymentMethod}>
                             <SelectTrigger data-testid="select-customer-payment-method">
                               <SelectValue placeholder="Select method" />
                             </SelectTrigger>
@@ -768,6 +907,74 @@ export default function Payments() {
                           {createCustomerPayment.isPending ? "Processing..." : "Finalize & Record Payment"}
                         </Button>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {step === 'completed' && completedPaymentData && (
+                  <div className="flex flex-col items-center justify-center space-y-6 py-8">
+                    <div className="rounded-full bg-primary/10 p-4">
+                      <CheckCircle className="h-16 w-16 text-primary" />
+                    </div>
+                    
+                    <div className="text-center space-y-2">
+                      <h3 className="text-xl font-semibold">Payment Recorded Successfully</h3>
+                      <p className="text-muted-foreground">
+                        Payment of {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })} received from {completedPaymentData.customerName}
+                      </p>
+                    </div>
+
+                    <Card className="w-full max-w-sm">
+                      <CardContent className="pt-4 space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Customer:</span>
+                          <span className="font-medium">{completedPaymentData.customerName}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Date:</span>
+                          <span className="font-medium">{completedPaymentData.date}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Method:</span>
+                          <span className="font-medium capitalize">{completedPaymentData.paymentMethod}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Invoices:</span>
+                          <span className="font-medium">{completedPaymentData.invoices.length}</span>
+                        </div>
+                        <div className="flex justify-between text-sm border-t pt-3">
+                          <span className="text-muted-foreground">Total Hamali:</span>
+                          <span className="font-medium font-mono">
+                            {completedPaymentData.invoices.reduce((sum, inv) => {
+                              const edited = completedPaymentData.editedInvoices[inv.id];
+                              return sum + (edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0);
+                            }, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-t pt-3">
+                          <span className="font-medium">Amount Paid:</span>
+                          <span className="text-lg font-bold font-mono text-primary">
+                            {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={handlePrintReceipt}
+                        data-testid="button-print-receipt"
+                      >
+                        <Printer className="h-4 w-4 mr-2" />
+                        Print Receipt
+                      </Button>
+                      <Button
+                        onClick={() => handleCustomerDialogClose(false)}
+                        data-testid="button-close-payment"
+                      >
+                        Done
+                      </Button>
                     </div>
                   </div>
                 )}
