@@ -337,6 +337,44 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/customers/:id/invoices", async (req, res) => {
+    try {
+      const invoices = await storage.getInvoicesByCustomer(req.params.id);
+      res.json(invoices);
+    } catch (error) {
+      console.error("Error getting customer invoices:", error);
+      res.status(500).json({ error: "Failed to get customer invoices" });
+    }
+  });
+
+  app.patch("/api/invoices/:id", async (req, res) => {
+    try {
+      const updates = req.body;
+      const invoice = await storage.updateInvoice(req.params.id, updates);
+      if (!invoice) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
+      res.json(invoice);
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      res.status(400).json({ error: "Failed to update invoice" });
+    }
+  });
+
+  app.patch("/api/invoice-items/:id", async (req, res) => {
+    try {
+      const updates = req.body;
+      const item = await storage.updateInvoiceItem(req.params.id, updates);
+      if (!item) {
+        return res.status(404).json({ error: "Invoice item not found" });
+      }
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating invoice item:", error);
+      res.status(400).json({ error: "Failed to update invoice item" });
+    }
+  });
+
   // Vendor Payments
   app.get("/api/vendor-payments", async (req, res) => {
     const { vendorId } = req.query;

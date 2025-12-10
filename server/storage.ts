@@ -93,7 +93,10 @@ export interface IStorage {
 
   getInvoices(): Promise<Invoice[]>;
   getInvoice(id: string): Promise<Invoice | undefined>;
+  getInvoicesByCustomer(customerId: string): Promise<Invoice[]>;
   createInvoice(invoice: InsertInvoice, items: InsertInvoiceItem[]): Promise<Invoice>;
+  updateInvoice(id: string, updates: Partial<InsertInvoice>): Promise<Invoice | undefined>;
+  updateInvoiceItem(id: string, updates: { quantity?: number; unitPrice?: number; total?: number }): Promise<InvoiceItem | undefined>;
   getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]>;
 
   getStockMovements(startDate?: string, endDate?: string): Promise<StockMovement[]>;
@@ -395,6 +398,20 @@ export class DatabaseStorage implements IStorage {
 
   async getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]> {
     return await db.select().from(invoiceItems).where(eq(invoiceItems.invoiceId, invoiceId));
+  }
+
+  async getInvoicesByCustomer(customerId: string): Promise<Invoice[]> {
+    return await db.select().from(invoices).where(eq(invoices.customerId, customerId));
+  }
+
+  async updateInvoice(id: string, updates: Partial<InsertInvoice>): Promise<Invoice | undefined> {
+    const [invoice] = await db.update(invoices).set(updates).where(eq(invoices.id, id)).returning();
+    return invoice || undefined;
+  }
+
+  async updateInvoiceItem(id: string, updates: { quantity?: number; unitPrice?: number; total?: number }): Promise<InvoiceItem | undefined> {
+    const [item] = await db.update(invoiceItems).set(updates).where(eq(invoiceItems.id, id)).returning();
+    return item || undefined;
   }
 
   async getStockMovements(startDate?: string, endDate?: string): Promise<StockMovement[]> {
