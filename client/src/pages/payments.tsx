@@ -89,6 +89,7 @@ export default function Payments() {
     customerName: string;
     amount: number;
     grandTotal: number;
+    previouslyPaid: number;
     paymentMethod: string;
     date: string;
     invoices: InvoiceWithItems[];
@@ -325,6 +326,7 @@ export default function Payments() {
         customerName: getCustomerName(variables.customerId),
         amount: variables.amount,
         grandTotal: grandTotalAllInvoices,
+        previouslyPaid: customerSummary?.totalPayments ?? 0,
         paymentMethod: variables.paymentMethod,
         date: variables.date,
         invoices: customerInvoices,
@@ -408,7 +410,8 @@ export default function Payments() {
 
     const grandTotal = invoiceSubtotal + totalHamali;
     const amountPaid = completedPaymentData.amount;
-    const balanceRemaining = grandTotal - amountPaid;
+    const totalPaidIncludingThis = completedPaymentData.previouslyPaid + amountPaid;
+    const balanceRemaining = grandTotal - totalPaidIncludingThis;
 
     const invoiceDetails = completedPaymentData.invoices.map(inv => {
       const edited = completedPaymentData.editedInvoices[inv.id];
@@ -559,10 +562,22 @@ export default function Payments() {
             <span class="label">GRAND TOTAL:</span>
             <span class="value">₹${grandTotal.toFixed(2)}</span>
           </div>
+          ${completedPaymentData.previouslyPaid > 0 ? `
+          <div class="summary-row" style="font-size: 13px; color: #666;">
+            <span class="label">Previously Paid:</span>
+            <span class="value">-₹${completedPaymentData.previouslyPaid.toFixed(2)}</span>
+          </div>
+          ` : ''}
           <div class="summary-row separator paid">
-            <span class="label">AMOUNT PAID:</span>
+            <span class="label">THIS PAYMENT:</span>
             <span class="value">₹${amountPaid.toFixed(2)}</span>
           </div>
+          ${completedPaymentData.previouslyPaid > 0 ? `
+          <div class="summary-row" style="font-size: 13px; color: #666;">
+            <span class="label">Total Paid:</span>
+            <span class="value">₹${totalPaidIncludingThis.toFixed(2)}</span>
+          </div>
+          ` : ''}
           <div class="summary-row balance">
             <span class="label">${balanceRemaining > 0 ? 'BALANCE DUE:' : 'BALANCE:'}</span>
             <span class="value">${balanceRemaining > 0 ? '₹' + balanceRemaining.toFixed(2) : '₹0.00 (Paid in Full)'}</span>
@@ -1159,16 +1174,24 @@ export default function Payments() {
                               {completedPaymentData.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                             </span>
                           </div>
+                          {completedPaymentData.previouslyPaid > 0 && (
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Previously Paid:</span>
+                              <span className="font-medium font-mono text-green-600">
+                                -{completedPaymentData.previouslyPaid.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Amount Paid:</span>
+                            <span className="text-muted-foreground">This Payment:</span>
                             <span className="font-medium font-mono text-primary">
                               {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                             </span>
                           </div>
                           <div className="flex justify-between border-t pt-2">
                             <span className="font-medium">Remaining Balance:</span>
-                            <span className={`text-lg font-bold font-mono ${(completedPaymentData.grandTotal - completedPaymentData.amount) > 0 ? 'text-destructive' : 'text-primary'}`}>
-                              {(completedPaymentData.grandTotal - completedPaymentData.amount).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                            <span className={`text-lg font-bold font-mono ${(completedPaymentData.grandTotal - completedPaymentData.previouslyPaid - completedPaymentData.amount) > 0 ? 'text-destructive' : 'text-primary'}`}>
+                              {(completedPaymentData.grandTotal - completedPaymentData.previouslyPaid - completedPaymentData.amount).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                             </span>
                           </div>
                         </CardContent>
