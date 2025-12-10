@@ -816,28 +816,59 @@ export default function Payments() {
                                       <TableRow>
                                         <TableHead className="text-xs">Product</TableHead>
                                         <TableHead className="text-xs text-center">Qty</TableHead>
-                                        <TableHead className="text-xs text-right">Price/Unit</TableHead>
+                                        <TableHead className="text-xs text-center">Price/Unit</TableHead>
+                                        <TableHead className="text-xs text-center">Bags</TableHead>
+                                        <TableHead className="text-xs text-center">Hamali</TableHead>
                                         <TableHead className="text-xs text-right">Total</TableHead>
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {invoice.items.map((item) => {
+                                      {invoice.items.map((item, index) => {
                                         const editedItem = edited?.items.find(e => e.itemId === item.id);
                                         const currentPrice = editedItem?.unitPrice ?? item.unitPrice;
                                         const currentTotal = editedItem?.total ?? item.total;
+                                        const isFirstRow = index === 0;
                                         
                                         return (
                                           <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
                                             <TableCell className="text-sm">{item.product?.name || 'Unknown'}</TableCell>
                                             <TableCell className="text-sm text-center">{item.quantity}</TableCell>
-                                            <TableCell className="text-right">
+                                            <TableCell className="text-center">
                                               <Input
                                                 type="number"
-                                                className="h-7 w-20 text-right text-sm ml-auto"
+                                                className="h-7 w-20 text-center text-sm mx-auto"
                                                 value={currentPrice}
                                                 onChange={(e) => updateItemPrice(invoice.id, item.id, parseFloat(e.target.value) || 0)}
                                                 data-testid={`input-price-${item.id}`}
                                               />
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                              {isFirstRow ? (
+                                                <Input
+                                                  type="number"
+                                                  className="h-7 w-16 text-center text-sm mx-auto"
+                                                  value={edited?.bags ?? 0}
+                                                  onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
+                                                  data-testid={`input-bags-${invoice.id}`}
+                                                />
+                                              ) : null}
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                              {isFirstRow ? (
+                                                <Input
+                                                  type="number"
+                                                  className="h-7 w-20 text-center text-sm mx-auto"
+                                                  value={edited?.hamaliChargeAmount ?? 0}
+                                                  onChange={(e) => {
+                                                    const newHamali = parseFloat(e.target.value) || 0;
+                                                    setEditedInvoices(prev => ({
+                                                      ...prev,
+                                                      [invoice.id]: { ...prev[invoice.id], hamaliChargeAmount: newHamali },
+                                                    }));
+                                                  }}
+                                                  data-testid={`input-hamali-${invoice.id}`}
+                                                />
+                                              ) : null}
                                             </TableCell>
                                             <TableCell className="text-sm text-right font-mono">
                                               {currentTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
@@ -848,40 +879,16 @@ export default function Payments() {
                                     </TableBody>
                                   </Table>
 
-                                  <div className="flex items-center justify-between pt-2 border-t gap-2 flex-wrap">
-                                    <div className="flex items-center gap-3 flex-wrap">
-                                      <div className="flex items-center gap-1">
-                                        <Label className="text-xs text-muted-foreground">Bags:</Label>
-                                        <Input
-                                          type="number"
-                                          className="h-7 w-16 text-sm"
-                                          value={edited?.bags ?? 0}
-                                          onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
-                                          data-testid={`input-bags-${invoice.id}`}
-                                        />
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <Label className="text-xs text-muted-foreground">Rate/Bag:</Label>
-                                        <Input
-                                          type="number"
-                                          className="h-7 w-20 text-sm"
-                                          value={edited?.ratePerBag ?? 0}
-                                          onChange={(e) => updateHamaliRate(invoice.id, parseFloat(e.target.value) || 0)}
-                                          data-testid={`input-rate-${invoice.id}`}
-                                        />
-                                      </div>
-                                      <span className="text-xs text-muted-foreground">
-                                        Hamali: <span className="font-mono font-medium">{(edited?.hamaliChargeAmount ?? 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-4 text-sm">
-                                      <span className="text-muted-foreground">
-                                        Subtotal: <span className="font-mono">{totals.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                                      </span>
-                                      <span className="font-semibold">
-                                        Total: <span className="font-mono text-primary">{totals.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                                      </span>
-                                    </div>
+                                  <div className="flex items-center justify-end pt-2 border-t gap-4 text-sm">
+                                    <span className="text-muted-foreground">
+                                      Subtotal: <span className="font-mono">{totals.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                      Hamali: <span className="font-mono">{(edited?.hamaliChargeAmount ?? 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                    </span>
+                                    <span className="font-semibold">
+                                      Total: <span className="font-mono text-primary">{totals.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                    </span>
                                   </div>
                                 </CardContent>
                               </Card>
