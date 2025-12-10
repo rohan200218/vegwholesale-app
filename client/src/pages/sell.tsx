@@ -42,6 +42,7 @@ interface SaleProduct {
   productName: string;
   unit: string;
   weight: number;
+  bags: number;
   price: number;
   available: number;
 }
@@ -92,7 +93,7 @@ function VehicleSalePane({
       .filter(item => item.product);
   }, [inventory, products, draft.products]);
 
-  const updateProductField = (productId: string, field: 'weight' | 'price', value: number) => {
+  const updateProductField = (productId: string, field: 'weight' | 'bags' | 'price', value: number) => {
     const exists = draft.products.find(p => p.productId === productId);
     const product = products.find(p => p.id === productId);
     const inv = inventory.find(i => i.productId === productId);
@@ -114,6 +115,7 @@ function VehicleSalePane({
           productName: product.name,
           unit: product.unit || "Units",
           weight: field === 'weight' ? value : 0,
+          bags: field === 'bags' ? value : 0,
           price: field === 'price' ? value : (product.salePrice || 0),
           available: inv.quantity,
         }],
@@ -136,6 +138,10 @@ function VehicleSalePane({
 
   const saleTotalWeight = useMemo(() => {
     return draft.products.reduce((sum, p) => sum + p.weight, 0);
+  }, [draft.products]);
+
+  const saleTotalBags = useMemo(() => {
+    return draft.products.reduce((sum, p) => sum + (p.bags || 0), 0);
   }, [draft.products]);
 
   const saleSubtotal = useMemo(() => {
@@ -243,7 +249,7 @@ function VehicleSalePane({
   const grandTotal = saleSubtotal + draft.hamaliCharge;
 
   return (
-    <Card className="border-primary/30 w-72 flex-shrink-0" data-testid={`section-customer-sale-${vehicle.id}`}>
+    <Card className="border-primary/30 w-80 flex-shrink-0" data-testid={`section-customer-sale-${vehicle.id}`}>
       <CardHeader className="p-3 pb-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -282,40 +288,54 @@ function VehicleSalePane({
 
         <div className="space-y-1">
           <div className="grid grid-cols-12 gap-1 text-[10px] text-muted-foreground font-medium px-1">
-            <div className="col-span-4">Product</div>
-            <div className="col-span-3 text-center">Qty</div>
-            <div className="col-span-3 text-center">Price</div>
+            <div className="col-span-3">Product</div>
+            <div className="col-span-2 text-center">Weight</div>
+            <div className="col-span-2 text-center">Bags</div>
+            <div className="col-span-3 text-center">Price/KG</div>
             <div className="col-span-2 text-right">Total</div>
           </div>
-          <div className="space-y-1 max-h-32 overflow-y-auto">
+          <div className="space-y-1 max-h-40 overflow-y-auto">
             {availableProducts.map((item) => {
               const draftProduct = draft.products.find(p => p.productId === item.productId);
-              const qty = draftProduct?.weight || 0;
+              const weight = draftProduct?.weight || 0;
+              const bags = draftProduct?.bags || 0;
               const price = draftProduct?.price || item.product?.salePrice || 0;
-              const lineTotal = qty * price;
+              const lineTotal = weight * price;
               
               return (
                 <div key={item.productId} className="grid grid-cols-12 gap-1 items-center">
-                  <div className="col-span-4 text-xs truncate" title={item.product?.name}>
+                  <div className="col-span-3 text-xs truncate" title={item.product?.name}>
                     {item.product?.name}
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <Input
                       type="number"
                       min="0"
                       step="0.1"
-                      className="h-6 text-xs text-center px-1"
-                      value={qty || ""}
+                      className="h-6 text-xs text-center px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      value={weight || ""}
                       placeholder="0"
                       onChange={(e) => updateProductField(item.productId, 'weight', parseFloat(e.target.value) || 0)}
-                      data-testid={`input-qty-${vehicle.id}-${item.productId}`}
+                      data-testid={`input-weight-${vehicle.id}-${item.productId}`}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      className="h-6 text-xs text-center px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      value={bags || ""}
+                      placeholder="0"
+                      onChange={(e) => updateProductField(item.productId, 'bags', parseInt(e.target.value) || 0)}
+                      data-testid={`input-bags-${vehicle.id}-${item.productId}`}
                     />
                   </div>
                   <div className="col-span-3">
                     <Input
                       type="number"
                       min="0"
-                      className="h-6 text-xs text-center px-1"
+                      className="h-6 text-xs text-center px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       value={price || ""}
                       placeholder="0"
                       onChange={(e) => updateProductField(item.productId, 'price', parseFloat(e.target.value) || 0)}
@@ -335,11 +355,11 @@ function VehicleSalePane({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Hamali:</span>
+          <span className="text-xs text-muted-foreground">Hamali Charge:</span>
           <Input
             type="number"
             min="0"
-            className="h-6 text-xs w-20 px-2"
+            className="h-6 text-xs w-20 px-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             value={draft.hamaliCharge || ""}
             placeholder="0"
             onChange={(e) => onUpdateDraft({ ...draft, hamaliCharge: parseFloat(e.target.value) || 0 })}
@@ -347,9 +367,27 @@ function VehicleSalePane({
           />
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t">
-          <span className="text-xs text-muted-foreground">Total:</span>
-          <span className="font-bold text-sm" data-testid={`text-grand-total-${vehicle.id}`}>₹{grandTotal.toFixed(0)}</span>
+        <div className="pt-2 border-t space-y-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Weight:</span>
+            <span data-testid={`text-total-weight-${vehicle.id}`}>{saleTotalWeight.toFixed(1)} KG</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Bags:</span>
+            <span data-testid={`text-total-bags-${vehicle.id}`}>{saleTotalBags}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Subtotal:</span>
+            <span>₹{saleSubtotal.toFixed(0)}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Hamali:</span>
+            <span>₹{draft.hamaliCharge.toFixed(0)}</span>
+          </div>
+          <div className="flex items-center justify-between pt-1 border-t">
+            <span className="text-sm font-medium">Grand Total:</span>
+            <span className="font-bold text-base text-primary" data-testid={`text-grand-total-${vehicle.id}`}>₹{grandTotal.toFixed(0)}</span>
+          </div>
         </div>
 
         <Button 
