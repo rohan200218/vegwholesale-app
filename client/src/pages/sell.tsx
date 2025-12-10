@@ -38,6 +38,7 @@ const vehicleFormSchema = z.object({
 interface NewProduct {
   name: string;
   unit: string;
+  purchasePrice: number;
   quantity: number;
   bags: number;
 }
@@ -421,6 +422,7 @@ export default function Sell() {
   const [showNewProductForm, setShowNewProductForm] = useState(false);
   const [newProductName, setNewProductName] = useState("");
   const [newProductUnit, setNewProductUnit] = useState("KG");
+  const [newProductPrice, setNewProductPrice] = useState("");
   
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<Set<string>>(new Set());
   const [saleDrafts, setSaleDrafts] = useState<Record<string, SaleDraft>>({});
@@ -498,7 +500,7 @@ export default function Sell() {
             name: np.name.trim(),
             unit: np.unit,
             category: "General",
-            purchasePrice: 0,
+            purchasePrice: np.purchasePrice || 0,
             salePrice: 0,
             currentStock: 0,
             reorderLevel: 0,
@@ -579,6 +581,7 @@ export default function Sell() {
       setShowNewProductForm(false);
       setNewProductName("");
       setNewProductUnit("KG");
+      setNewProductPrice("");
     }
   };
 
@@ -587,11 +590,13 @@ export default function Sell() {
       setNewProducts(prev => [...prev, {
         name: newProductName.trim(),
         unit: newProductUnit,
+        purchasePrice: parseFloat(newProductPrice) || 0,
         quantity: 0,
         bags: 0,
       }]);
       setNewProductName("");
       setNewProductUnit("KG");
+      setNewProductPrice("");
       setShowNewProductForm(false);
     }
   };
@@ -979,12 +984,13 @@ export default function Sell() {
                               setShowNewProductForm(false);
                               setNewProductName("");
                               setNewProductUnit("KG");
+                              setNewProductPrice("");
                             }}
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                           <Input
                             placeholder="Product name"
                             value={newProductName}
@@ -1002,6 +1008,13 @@ export default function Sell() {
                               <SelectItem value="Bundle">Bundle</SelectItem>
                             </SelectContent>
                           </Select>
+                          <Input
+                            type="number"
+                            placeholder="Purchase Price (₹)"
+                            value={newProductPrice}
+                            onChange={(e) => setNewProductPrice(e.target.value)}
+                            data-testid="input-new-product-price"
+                          />
                           <Button
                             type="button"
                             onClick={addNewProduct}
@@ -1022,9 +1035,12 @@ export default function Sell() {
                             <div className="flex items-start gap-3">
                               <div className="flex-1">
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-medium">{np.name}</span>
                                     <Badge variant="outline" className="text-xs">{np.unit}</Badge>
+                                    {np.purchasePrice > 0 && (
+                                      <Badge variant="outline" className="text-xs font-mono">₹{np.purchasePrice}/unit</Badge>
+                                    )}
                                     <Badge variant="secondary" className="text-xs">New</Badge>
                                   </div>
                                   <Button
