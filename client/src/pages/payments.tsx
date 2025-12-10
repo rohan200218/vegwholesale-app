@@ -365,6 +365,21 @@ export default function Payments() {
       return sum + (edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0);
     }, 0);
 
+    const totalBags = completedPaymentData.invoices.reduce((sum, inv) => {
+      const edited = completedPaymentData.editedInvoices[inv.id];
+      return sum + (edited?.bags || 0);
+    }, 0);
+
+    const invoiceSubtotal = completedPaymentData.invoices.reduce((sum, inv) => {
+      const edited = completedPaymentData.editedInvoices[inv.id];
+      const itemsTotal = edited?.items.reduce((s, i) => s + i.total, 0) || inv.subtotal;
+      return sum + itemsTotal;
+    }, 0);
+
+    const grandTotal = invoiceSubtotal + totalHamali;
+    const amountPaid = completedPaymentData.amount;
+    const balanceRemaining = grandTotal - amountPaid;
+
     const invoiceDetails = completedPaymentData.invoices.map(inv => {
       const edited = completedPaymentData.editedInvoices[inv.id];
       const itemsHtml = inv.items.map(item => {
@@ -373,93 +388,160 @@ export default function Payments() {
         const total = editedItem?.total ?? item.total;
         return `
           <tr>
-            <td style="padding: 4px 8px; border-bottom: 1px solid #eee;">${item.product?.name || 'Unknown'}</td>
-            <td style="padding: 4px 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-            <td style="padding: 4px 8px; border-bottom: 1px solid #eee; text-align: right;">₹${price.toFixed(2)}</td>
-            <td style="padding: 4px 8px; border-bottom: 1px solid #eee; text-align: right;">₹${total.toFixed(2)}</td>
+            <td style="padding: 6px 10px; border-bottom: 1px solid #e0e0e0;">${item.product?.name || 'Unknown'}</td>
+            <td style="padding: 6px 10px; border-bottom: 1px solid #e0e0e0; text-align: center;">${item.quantity}</td>
+            <td style="padding: 6px 10px; border-bottom: 1px solid #e0e0e0; text-align: right;">₹${price.toFixed(2)}</td>
+            <td style="padding: 6px 10px; border-bottom: 1px solid #e0e0e0; text-align: right; font-weight: 500;">₹${total.toFixed(2)}</td>
           </tr>
         `;
       }).join('');
       
       const hamali = edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0;
       const bags = edited?.bags || 0;
-      const ratePerBag = edited?.ratePerBag || 0;
       const subtotal = edited?.items.reduce((s, i) => s + i.total, 0) || inv.subtotal;
       
       return `
-        <div style="margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <strong>${inv.invoiceNumber}</strong>
-            <span>${inv.date}</span>
+        <div style="margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; overflow: hidden;">
+          <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid #ddd;">
+            <strong style="color: #333;">${inv.invoiceNumber}</strong>
+            <span style="color: #666;">${inv.date}</span>
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
             <thead>
-              <tr style="background: #f5f5f5;">
-                <th style="padding: 4px 8px; text-align: left;">Product</th>
-                <th style="padding: 4px 8px; text-align: center;">Qty</th>
-                <th style="padding: 4px 8px; text-align: right;">Price</th>
-                <th style="padding: 4px 8px; text-align: right;">Total</th>
+              <tr style="background: #fafafa;">
+                <th style="padding: 8px 10px; text-align: left; font-weight: 600; color: #555;">Product</th>
+                <th style="padding: 8px 10px; text-align: center; font-weight: 600; color: #555;">Qty</th>
+                <th style="padding: 8px 10px; text-align: right; font-weight: 600; color: #555;">Rate</th>
+                <th style="padding: 8px 10px; text-align: right; font-weight: 600; color: #555;">Amount</th>
               </tr>
             </thead>
             <tbody>
               ${itemsHtml}
             </tbody>
           </table>
-          <div style="margin-top: 8px; text-align: right; font-size: 12px;">
-            <div>Subtotal: ₹${subtotal.toFixed(2)}</div>
-            <div>Hamali: ${bags} bags × ₹${ratePerBag.toFixed(2)} = ₹${hamali.toFixed(2)}</div>
-            <div style="font-weight: bold;">Invoice Total: ₹${(subtotal + hamali).toFixed(2)}</div>
+          <div style="padding: 10px 12px; background: #fafafa; border-top: 1px solid #e0e0e0;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-bottom: 4px;">
+              <span>Products Total:</span>
+              <span>₹${subtotal.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-bottom: 4px;">
+              <span>Hamali (${bags} bags):</span>
+              <span>₹${hamali.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: #333; padding-top: 6px; border-top: 1px dashed #ddd;">
+              <span>Invoice Total:</span>
+              <span>₹${(subtotal + hamali).toFixed(2)}</span>
+            </div>
           </div>
         </div>
       `;
     }).join('');
 
+    const paymentMethodLabel = {
+      cash: 'CASH',
+      bank: 'BANK TRANSFER',
+      upi: 'UPI',
+    }[completedPaymentData.paymentMethod] || completedPaymentData.paymentMethod.toUpperCase();
+
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Payment Receipt</title>
+        <title>Payment Receipt - ${completedPaymentData.customerName}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-          .header h1 { margin: 0; color: #333; }
-          .header p { margin: 5px 0; color: #666; }
-          .details { display: flex; justify-content: space-between; margin-bottom: 20px; }
-          .details div { flex: 1; }
-          .total-section { margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 4px; }
-          .grand-total { font-size: 24px; font-weight: bold; color: #2e7d32; text-align: right; }
-          @media print { body { print-color-adjust: exact; } }
+          * { box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; color: #333; }
+          .header { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #2e7d32; }
+          .header h1 { margin: 0 0 5px 0; color: #2e7d32; font-size: 28px; }
+          .header .business-name { margin: 0; color: #666; font-size: 14px; }
+          .header .receipt-date { margin-top: 8px; font-size: 12px; color: #888; }
+          .customer-info { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+          .customer-info h3 { margin: 0 0 12px 0; font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+          .info-item { display: flex; justify-content: space-between; font-size: 14px; }
+          .info-item .label { color: #666; }
+          .info-item .value { font-weight: 600; color: #333; }
+          .payment-method { display: inline-block; background: #2e7d32; color: white; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+          .invoices-section { margin-bottom: 20px; }
+          .invoices-section h3 { margin: 0 0 15px 0; font-size: 16px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
+          .summary-box { background: #f8f9fa; border: 2px solid #2e7d32; border-radius: 8px; padding: 20px; }
+          .summary-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
+          .summary-row.separator { border-top: 1px solid #ddd; margin-top: 8px; padding-top: 12px; }
+          .summary-row .label { color: #666; }
+          .summary-row .value { font-weight: 600; }
+          .summary-row.total { font-size: 16px; border-top: 2px solid #333; margin-top: 10px; padding-top: 12px; }
+          .summary-row.total .label, .summary-row.total .value { font-weight: 700; color: #333; }
+          .summary-row.paid { font-size: 18px; }
+          .summary-row.paid .value { color: #2e7d32; font-size: 20px; }
+          .summary-row.balance .value { color: ${balanceRemaining > 0 ? '#d32f2f' : '#2e7d32'}; }
+          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+          .footer p { margin: 5px 0; font-size: 12px; color: #888; }
+          @media print { 
+            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } 
+            .summary-box { break-inside: avoid; }
+          }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>Payment Receipt</h1>
-          <p>VegWholesale Business</p>
+          <h1>PAYMENT RECEIPT</h1>
+          <p class="business-name">VegWholesale Business</p>
+          <p class="receipt-date">${new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
         
-        <div class="details">
-          <div>
-            <strong>Customer:</strong> ${completedPaymentData.customerName}<br>
-            <strong>Date:</strong> ${completedPaymentData.date}<br>
-            <strong>Payment Method:</strong> ${completedPaymentData.paymentMethod.toUpperCase()}
+        <div class="customer-info">
+          <h3>Customer Details</h3>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="label">Customer Name:</span>
+              <span class="value">${completedPaymentData.customerName}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">Payment Date:</span>
+              <span class="value">${completedPaymentData.date}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">Payment Method:</span>
+              <span class="payment-method">${paymentMethodLabel}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">Total Invoices:</span>
+              <span class="value">${completedPaymentData.invoices.length}</span>
+            </div>
           </div>
         </div>
         
-        <h3>Invoice Details</h3>
-        ${invoiceDetails}
+        <div class="invoices-section">
+          <h3>Invoice Details</h3>
+          ${invoiceDetails}
+        </div>
         
-        <div class="total-section">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span>Total Hamali:</span>
-            <span>₹${totalHamali.toFixed(2)}</span>
+        <div class="summary-box">
+          <div class="summary-row">
+            <span class="label">Products Subtotal:</span>
+            <span class="value">₹${invoiceSubtotal.toFixed(2)}</span>
           </div>
-          <div class="grand-total">
-            <span>Amount Paid: ₹${completedPaymentData.amount.toFixed(2)}</span>
+          <div class="summary-row">
+            <span class="label">Total Hamali (${totalBags} bags):</span>
+            <span class="value">₹${totalHamali.toFixed(2)}</span>
+          </div>
+          <div class="summary-row total">
+            <span class="label">GRAND TOTAL:</span>
+            <span class="value">₹${grandTotal.toFixed(2)}</span>
+          </div>
+          <div class="summary-row separator paid">
+            <span class="label">AMOUNT PAID:</span>
+            <span class="value">₹${amountPaid.toFixed(2)}</span>
+          </div>
+          <div class="summary-row balance">
+            <span class="label">${balanceRemaining > 0 ? 'BALANCE DUE:' : 'BALANCE:'}</span>
+            <span class="value">${balanceRemaining > 0 ? '₹' + balanceRemaining.toFixed(2) : '₹0.00 (Paid in Full)'}</span>
           </div>
         </div>
         
-        <div style="text-align: center; margin-top: 40px; color: #888; font-size: 12px;">
-          Thank you for your business!
+        <div class="footer">
+          <p>Thank you for your business!</p>
+          <p>For any queries, please contact us.</p>
         </div>
         
         <script>
