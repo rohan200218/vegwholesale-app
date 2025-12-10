@@ -32,7 +32,15 @@ const vehicleFormSchema = z.object({
   driverName: z.string().optional(),
   driverPhone: z.string().optional(),
   vendorId: z.string().optional(),
+  newVendorName: z.string().optional(),
 });
+
+interface NewProduct {
+  name: string;
+  unit: string;
+  quantity: number;
+  bags: number;
+}
 
 type ProductItem = z.infer<typeof productItemSchema>;
 type VehicleFormValues = z.infer<typeof vehicleFormSchema>;
@@ -409,6 +417,10 @@ export default function Sell() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<ProductItem[]>([]);
+  const [newProducts, setNewProducts] = useState<NewProduct[]>([]);
+  const [showNewProductForm, setShowNewProductForm] = useState(false);
+  const [newProductName, setNewProductName] = useState("");
+  const [newProductUnit, setNewProductUnit] = useState("KG");
   
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<Set<string>>(new Set());
   const [saleDrafts, setSaleDrafts] = useState<Record<string, SaleDraft>>({});
@@ -422,6 +434,7 @@ export default function Sell() {
       driverName: "",
       driverPhone: "",
       vendorId: "",
+      newVendorName: "",
     },
   });
 
@@ -465,6 +478,36 @@ export default function Sell() {
 
   const createVehicleMutation = useMutation({
     mutationFn: async (data: VehicleFormValues) => {
+      let vendorName = data.vendorId ? vendors.find(v => v.id === data.vendorId)?.name : null;
+      
+      if (data.vendorId === "new" && data.newVendorName?.trim()) {
+        const vendorRes = await apiRequest("POST", "/api/vendors", {
+          name: data.newVendorName.trim(),
+          phone: "",
+          address: "",
+          email: "",
+        });
+        const newVendor = await vendorRes.json();
+        vendorName = newVendor.name;
+      }
+
+      const createdProductIds: Record<string, string> = {};
+      for (const np of newProducts) {
+        if (np.name.trim() && np.quantity > 0) {
+          const productRes = await apiRequest("POST", "/api/products", {
+            name: np.name.trim(),
+            unit: np.unit,
+            category: "General",
+            purchasePrice: 0,
+            salePrice: 0,
+            currentStock: 0,
+            reorderLevel: 0,
+          });
+          const createdProduct = await productRes.json();
+          createdProductIds[np.name] = createdProduct.id;
+        }
+      }
+
       const vehicleResponse = await apiRequest("POST", "/api/vehicles", {
         number: data.vehicleNumber,
         type: data.vehicleType,
@@ -478,7 +521,6 @@ export default function Sell() {
       const productsToLoad = selectedProducts.filter(p => p.quantity > 0);
       if (productsToLoad.length > 0 && vehicle.id) {
         const today = new Date().toISOString().split('T')[0];
-        const vendorName = data.vendorId ? vendors.find(v => v.id === data.vendorId)?.name : null;
         
         for (const item of productsToLoad) {
           await apiRequest("POST", `/api/vehicles/${vehicle.id}/inventory`, {
@@ -496,15 +538,42 @@ export default function Sell() {
           });
         }
       }
+
+      for (const np of newProducts) {
+        const productId = createdProductIds[np.name];
+        if (productId && np.quantity > 0 && vehicle.id) {
+          const today = new Date().toISOString().split('T')[0];
+          
+          await apiRequest("POST", `/api/vehicles/${vehicle.id}/inventory`, {
+            productId,
+            quantity: np.quantity,
+          });
+          
+          await apiRequest("POST", "/api/vehicle-inventory-movements", {
+            vehicleId: vehicle.id,
+            productId,
+            type: "load",
+            quantity: np.quantity,
+            date: today,
+            notes: vendorName ? `Loaded from ${vendorName}` : "Initial load",
+          });
+        }
+      }
       
       return vehicle;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vehicles"] });
       queryClient.invalidateQueries({ queryKey: ["/api/all-vehicle-inventories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vendors"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       setIsDialogOpen(false);
       form.reset();
       setSelectedProducts([]);
+      setNewProducts([]);
+      setShowNewProductForm(false);
+      setNewProductName("");
+      setNewProductUnit("KG");
       toast({
         title: "Vehicle Created",
         description: "New vehicle has been added with loaded products.",
@@ -528,7 +597,41 @@ export default function Sell() {
     if (!open) {
       form.reset();
       setSelectedProducts([]);
+      setNewProducts([]);
+      setShowNewProductForm(false);
+      setNewProductName("");
+      setNewProductUnit("KG");
     }
+  };
+
+  const addNewProduct = () => {
+    if (newProductName.trim()) {
+      setNewProducts(prev => [...prev, {
+        name: newProductName.trim(),
+        unit: newProductUnit,
+        quantity: 0,
+        bags: 0,
+      }]);
+      setNewProductName("");
+      setNewProductUnit("KG");
+      setShowNewProductForm(false);
+    }
+  };
+
+  const updateNewProductQuantity = (index: number, value: number) => {
+    setNewProducts(prev => prev.map((p, i) => 
+      i === index ? { ...p, quantity: Math.max(0, value) } : p
+    ));
+  };
+
+  const updateNewProductBags = (index: number, value: number) => {
+    setNewProducts(prev => prev.map((p, i) => 
+      i === index ? { ...p, bags: Math.max(0, Math.floor(value)) } : p
+    ));
+  };
+
+  const removeNewProduct = (index: number) => {
+    setNewProducts(prev => prev.filter((_, i) => i !== index));
   };
 
   const toggleProduct = (productId: string) => {
@@ -583,9 +686,17 @@ export default function Sell() {
       }
       bags += item.bags || 0;
     }
+
+    for (const np of newProducts) {
+      const unit = np.unit?.toLowerCase() || "";
+      if (unit === "kg" && np.quantity > 0) {
+        weight += np.quantity;
+      }
+      bags += np.bags || 0;
+    }
     
     return { totalWeight: weight, totalBags: bags };
-  }, [selectedProducts, products]);
+  }, [selectedProducts, products, newProducts]);
 
   useEffect(() => {
     if (totalWeight > 0) {
@@ -778,6 +889,7 @@ export default function Sell() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
+                              <SelectItem value="new">+ Add New Vendor</SelectItem>
                               {vendors.map((vendor) => (
                                 <SelectItem key={vendor.id} value={vendor.id}>
                                   {vendor.name}
@@ -789,6 +901,21 @@ export default function Sell() {
                         </FormItem>
                       )}
                     />
+                    {form.watch("vendorId") === "new" && (
+                      <FormField
+                        control={form.control}
+                        name="newVendorName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>New Vendor Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter vendor name" {...field} data-testid="input-new-vendor-name" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
                     <FormField
                       control={form.control}
                       name="driverName"
@@ -845,10 +972,166 @@ export default function Sell() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <h3 className="text-lg font-medium">Select Products to Load</h3>
-                      {selectedProducts.length > 0 && (
-                        <Badge variant="secondary">{selectedProducts.length} selected</Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {(selectedProducts.length > 0 || newProducts.length > 0) && (
+                          <Badge variant="secondary">{selectedProducts.length + newProducts.length} selected</Badge>
+                        )}
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setShowNewProductForm(true)}
+                          data-testid="button-add-new-product"
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add New
+                        </Button>
+                      </div>
                     </div>
+
+                    {showNewProductForm && (
+                      <div className="p-3 border rounded-md bg-muted/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm">Add New Product</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setShowNewProductForm(false);
+                              setNewProductName("");
+                              setNewProductUnit("KG");
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <Input
+                            placeholder="Product name"
+                            value={newProductName}
+                            onChange={(e) => setNewProductName(e.target.value)}
+                            data-testid="input-new-product-name"
+                          />
+                          <Select value={newProductUnit} onValueChange={setNewProductUnit}>
+                            <SelectTrigger data-testid="select-new-product-unit">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="KG">KG</SelectItem>
+                              <SelectItem value="Units">Units</SelectItem>
+                              <SelectItem value="Dozen">Dozen</SelectItem>
+                              <SelectItem value="Bundle">Bundle</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            onClick={addNewProduct}
+                            disabled={!newProductName.trim()}
+                            data-testid="button-confirm-new-product"
+                          >
+                            Add Product
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {newProducts.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-sm text-muted-foreground">New Products (will be created):</span>
+                        {newProducts.map((np, index) => (
+                          <div key={index} className="p-3 border rounded-md border-primary/50 bg-primary/5">
+                            <div className="flex items-start gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{np.name}</span>
+                                    <Badge variant="outline" className="text-xs">{np.unit}</Badge>
+                                    <Badge variant="secondary" className="text-xs">New</Badge>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeNewProduct(index)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-sm text-muted-foreground mb-1 block">
+                                      Quantity ({np.unit})
+                                    </label>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="outline"
+                                        onClick={() => updateNewProductQuantity(index, np.quantity - 1)}
+                                        className="h-8 w-8"
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step={np.unit === "KG" ? "0.1" : "1"}
+                                        value={np.quantity || 0}
+                                        onChange={(e) => updateNewProductQuantity(index, parseFloat(e.target.value) || 0)}
+                                        className="text-center h-8 w-20"
+                                        data-testid={`input-new-product-qty-${index}`}
+                                      />
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="outline"
+                                        onClick={() => updateNewProductQuantity(index, np.quantity + 1)}
+                                        className="h-8 w-8"
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="text-sm text-muted-foreground mb-1 block">Bags</label>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="outline"
+                                        onClick={() => updateNewProductBags(index, np.bags - 1)}
+                                        className="h-8 w-8"
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value={np.bags || 0}
+                                        onChange={(e) => updateNewProductBags(index, parseInt(e.target.value) || 0)}
+                                        className="text-center h-8 w-20"
+                                        data-testid={`input-new-product-bags-${index}`}
+                                      />
+                                      <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="outline"
+                                        onClick={() => updateNewProductBags(index, np.bags + 1)}
+                                        className="h-8 w-8"
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     
                     <ScrollArea className="h-64 border rounded-md p-4">
                       <div className="space-y-3">
