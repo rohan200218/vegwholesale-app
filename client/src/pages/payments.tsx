@@ -950,80 +950,82 @@ export default function Payments() {
                 )}
 
                 {step === 'completed' && completedPaymentData && (
-                  <div className="flex flex-col items-center justify-center space-y-6 py-8">
-                    <div className="rounded-full bg-primary/10 p-4">
-                      <CheckCircle className="h-16 w-16 text-primary" />
-                    </div>
-                    
-                    <div className="text-center space-y-2">
-                      <h3 className="text-xl font-semibold">Payment Recorded Successfully</h3>
-                      <p className="text-muted-foreground">
-                        Payment of {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })} received from {completedPaymentData.customerName}
-                      </p>
-                    </div>
+                  <ScrollArea className="flex-1">
+                    <div className="flex flex-col items-center justify-center space-y-6 py-6 px-4">
+                      <div className="rounded-full bg-primary/10 p-4">
+                        <CheckCircle className="h-12 w-12 text-primary" />
+                      </div>
+                      
+                      <div className="text-center space-y-1">
+                        <h3 className="text-lg font-semibold">Payment Recorded Successfully</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Payment of {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })} received from {completedPaymentData.customerName}
+                        </p>
+                      </div>
 
-                    <Card className="w-full max-w-sm">
-                      <CardContent className="pt-4 space-y-3">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Customer:</span>
-                          <span className="font-medium">{completedPaymentData.customerName}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Date:</span>
-                          <span className="font-medium">{completedPaymentData.date}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Method:</span>
-                          <span className="font-medium capitalize">{completedPaymentData.paymentMethod}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Invoices:</span>
-                          <span className="font-medium">{completedPaymentData.invoices.length}</span>
-                        </div>
-                        <div className="flex justify-between text-sm border-t pt-3">
-                          <span className="text-muted-foreground">Total Bags:</span>
-                          <span className="font-medium font-mono">
-                            {completedPaymentData.invoices.reduce((sum, inv) => {
-                              const edited = completedPaymentData.editedInvoices[inv.id];
-                              return sum + (edited?.bags || 0);
-                            }, 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Total Hamali:</span>
-                          <span className="font-medium font-mono">
-                            {completedPaymentData.invoices.reduce((sum, inv) => {
-                              const edited = completedPaymentData.editedInvoices[inv.id];
-                              return sum + (edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0);
-                            }, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                          </span>
-                        </div>
-                        <div className="flex justify-between border-t pt-3">
-                          <span className="font-medium">Amount Paid:</span>
-                          <span className="text-lg font-bold font-mono text-primary">
-                            {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      <Card className="w-full max-w-sm">
+                        <CardContent className="pt-4 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Customer:</span>
+                            <span className="font-medium">{completedPaymentData.customerName}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Date:</span>
+                            <span className="font-medium">{completedPaymentData.date}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Method:</span>
+                            <span className="font-medium capitalize">{completedPaymentData.paymentMethod}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Invoices:</span>
+                            <span className="font-medium">{completedPaymentData.invoices.length}</span>
+                          </div>
+                          <div className="flex justify-between text-sm border-t pt-2">
+                            <span className="text-muted-foreground">Total Bags:</span>
+                            <span className="font-medium font-mono">
+                              {completedPaymentData.invoices.reduce((sum, inv) => {
+                                const edited = completedPaymentData.editedInvoices[inv.id];
+                                return sum + (edited?.bags || 0);
+                              }, 0)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Total Hamali:</span>
+                            <span className="font-medium font-mono">
+                              {completedPaymentData.invoices.reduce((sum, inv) => {
+                                const edited = completedPaymentData.editedInvoices[inv.id];
+                                return sum + (edited?.hamaliChargeAmount || inv.hamaliChargeAmount || 0);
+                              }, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t pt-2">
+                            <span className="font-medium">Amount Paid:</span>
+                            <span className="text-lg font-bold font-mono text-primary">
+                              {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
 
-                    <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={handlePrintReceipt}
-                        data-testid="button-print-receipt"
-                      >
-                        <Printer className="h-4 w-4 mr-2" />
-                        Print Receipt
-                      </Button>
-                      <Button
-                        onClick={() => handleCustomerDialogClose(false)}
-                        data-testid="button-close-payment"
-                      >
-                        Done
-                      </Button>
+                      <div className="flex gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={handlePrintReceipt}
+                          data-testid="button-print-receipt"
+                        >
+                          <Printer className="h-4 w-4 mr-2" />
+                          Print Receipt
+                        </Button>
+                        <Button
+                          onClick={() => handleCustomerDialogClose(false)}
+                          data-testid="button-close-payment"
+                        >
+                          Done
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  </ScrollArea>
                 )}
               </DialogContent>
             </Dialog>
