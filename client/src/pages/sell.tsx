@@ -520,21 +520,10 @@ export default function Sell() {
       
       const productsToLoad = selectedProducts.filter(p => p.quantity > 0);
       if (productsToLoad.length > 0 && vehicle.id) {
-        const today = new Date().toISOString().split('T')[0];
-        
         for (const item of productsToLoad) {
-          await apiRequest("POST", `/api/vehicles/${vehicle.id}/inventory`, {
+          await apiRequest("POST", `/api/vehicles/${vehicle.id}/inventory/load`, {
             productId: item.productId,
             quantity: item.quantity,
-          });
-          
-          await apiRequest("POST", "/api/vehicle-inventory-movements", {
-            vehicleId: vehicle.id,
-            productId: item.productId,
-            type: "load",
-            quantity: item.quantity,
-            date: today,
-            notes: vendorName ? `Loaded from ${vendorName}` : "Initial load",
           });
         }
       }
@@ -542,20 +531,9 @@ export default function Sell() {
       for (const np of newProducts) {
         const productId = createdProductIds[np.name];
         if (productId && np.quantity > 0 && vehicle.id) {
-          const today = new Date().toISOString().split('T')[0];
-          
-          await apiRequest("POST", `/api/vehicles/${vehicle.id}/inventory`, {
+          await apiRequest("POST", `/api/vehicles/${vehicle.id}/inventory/load`, {
             productId,
             quantity: np.quantity,
-          });
-          
-          await apiRequest("POST", "/api/vehicle-inventory-movements", {
-            vehicleId: vehicle.id,
-            productId,
-            type: "load",
-            quantity: np.quantity,
-            date: today,
-            notes: vendorName ? `Loaded from ${vendorName}` : "Initial load",
           });
         }
       }
