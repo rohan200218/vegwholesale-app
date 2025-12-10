@@ -406,7 +406,18 @@ export async function registerRoutes(
   app.get("/api/customer-payments", async (req, res) => {
     const { customerId } = req.query;
     const payments = await storage.getCustomerPayments(customerId as string | undefined);
-    res.json(payments);
+    
+    // Enrich payments with invoice numbers
+    const allInvoices = await storage.getInvoices();
+    const enrichedPayments = payments.map(payment => {
+      const invoice = payment.invoiceId ? allInvoices.find(inv => inv.id === payment.invoiceId) : null;
+      return {
+        ...payment,
+        invoiceNumber: invoice?.invoiceNumber || null,
+      };
+    });
+    
+    res.json(enrichedPayments);
   });
 
   app.post("/api/customer-payments", async (req, res) => {

@@ -38,6 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type VendorWithBalance = Vendor & { totalPurchases: number; totalPayments: number; balance: number };
 type CustomerWithBalance = Customer & { totalInvoices: number; totalPayments: number; balance: number };
+type CustomerPaymentWithInvoice = CustomerPayment & { invoiceNumber?: string | null };
 
 interface InvoiceWithItems extends Invoice {
   items: (InvoiceItem & { product?: Product })[];
@@ -73,6 +74,7 @@ export default function Payments() {
   const [customerPaymentMethod, setCustomerPaymentMethod] = useState("cash");
   const [hamaliDialogOpen, setHamaliDialogOpen] = useState(false);
   const [hamaliAmount, setHamaliAmount] = useState("");
+  const [historyCustomerFilter, setHistoryCustomerFilter] = useState<string>("all");
   const [hamaliCustomerId, setHamaliCustomerId] = useState<string>("none");
   const [hamaliNotes, setHamaliNotes] = useState("");
   
@@ -120,9 +122,14 @@ export default function Payments() {
     queryKey: ["/api/vendor-payments"],
   });
 
-  const { data: customerPayments = [] } = useQuery<CustomerPayment[]>({
+  const { data: customerPayments = [] } = useQuery<CustomerPaymentWithInvoice[]>({
     queryKey: ["/api/customer-payments"],
   });
+  
+  const filteredCustomerPayments = useMemo(() => {
+    if (historyCustomerFilter === "all") return customerPayments;
+    return customerPayments.filter(p => p.customerId === historyCustomerFilter);
+  }, [customerPayments, historyCustomerFilter]);
 
   const { data: hamaliCashPayments = [] } = useQuery<HamaliCashPayment[]>({
     queryKey: ["/api/hamali-cash"],
@@ -587,6 +594,116 @@ export default function Payments() {
         <div class="footer">
           <p>Thank you for your business!</p>
           <p>For any queries, please contact us.</p>
+        </div>
+        
+        <script>
+          window.onload = function() { window.print(); }
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const printPaymentHistory = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({ title: "Error", description: "Please allow popups to print", variant: "destructive" });
+      return;
+    }
+
+    const customerName = historyCustomerFilter === "all" 
+      ? "All Customers" 
+      : getCustomerName(historyCustomerFilter);
+
+    const totalAmount = filteredCustomerPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    const paymentRows = filteredCustomerPayments.map(payment => `
+      <tr>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0;">${payment.date}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0;">${getCustomerName(payment.customerId)}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0; font-family: monospace; font-size: 11px;">${payment.invoiceNumber || '-'}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0; text-transform: capitalize;">${payment.paymentMethod}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0; text-align: right; font-family: monospace;">₹${payment.amount.toLocaleString("en-IN")}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payment History - ${customerName}</title>
+        <style>
+          body { 
+            font-family: 'IBM Plex Sans', -apple-system, sans-serif; 
+            padding: 20px; 
+            color: #1a1a1a;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #0f172a;
+          }
+          .header h1 { margin: 0 0 8px 0; font-size: 22px; }
+          .header p { margin: 0; color: #666; font-size: 14px; }
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 16px;
+          }
+          th { 
+            background: #f8f9fa; 
+            padding: 10px 12px; 
+            text-align: left; 
+            font-weight: 600;
+            font-size: 12px;
+            border-bottom: 2px solid #e0e0e0;
+          }
+          th:last-child { text-align: right; }
+          .total-row {
+            background: #f0fdf4;
+            font-weight: 600;
+          }
+          .total-row td { padding: 12px; border-top: 2px solid #0f172a; }
+          .footer {
+            margin-top: 24px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+          }
+          @media print {
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Payment History</h1>
+          <p>${customerName} | Generated: ${new Date().toLocaleDateString('en-IN')}</p>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Invoice</th>
+              <th>Method</th>
+              <th style="text-align: right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${paymentRows}
+            <tr class="total-row">
+              <td colspan="4"><strong>Total (${filteredCustomerPayments.length} payments)</strong></td>
+              <td style="text-align: right; font-family: monospace;"><strong>₹${totalAmount.toLocaleString("en-IN")}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>Printed on ${new Date().toLocaleString('en-IN')}</p>
         </div>
         
         <script>
@@ -1325,8 +1442,33 @@ export default function Payments() {
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
               <CardTitle>Payment History</CardTitle>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Select value={historyCustomerFilter} onValueChange={setHistoryCustomerFilter}>
+                  <SelectTrigger className="w-48" data-testid="select-history-customer">
+                    <SelectValue placeholder="Filter by customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Customers</SelectItem>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => printPaymentHistory()}
+                  disabled={filteredCustomerPayments.length === 0}
+                  data-testid="button-print-payment-history"
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -1334,22 +1476,32 @@ export default function Payments() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Invoice</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {customerPayments.length === 0 ? (
+                  {filteredCustomerPayments.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         No payment history
                       </TableCell>
                     </TableRow>
                   ) : (
-                    customerPayments.map((payment) => (
+                    filteredCustomerPayments.map((payment) => (
                       <TableRow key={payment.id} data-testid={`row-customer-payment-${payment.id}`}>
                         <TableCell>{payment.date}</TableCell>
                         <TableCell>{getCustomerName(payment.customerId)}</TableCell>
+                        <TableCell>
+                          {payment.invoiceNumber ? (
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {payment.invoiceNumber}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                         <TableCell className="capitalize">{payment.paymentMethod}</TableCell>
                         <TableCell className="text-right font-mono">
                           {payment.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
