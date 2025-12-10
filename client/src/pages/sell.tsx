@@ -1277,24 +1277,51 @@ export default function Sell() {
             );
           }
 
+          const totalQty = itemsWithStock.reduce((sum, inv) => sum + inv.quantity, 0);
+
           return (
             <Card
               key={vehicle.id}
-              className="hover-elevate cursor-pointer w-28 h-24 flex-shrink-0"
+              className="hover-elevate cursor-pointer w-36 flex-shrink-0"
               onClick={() => handleVehicleSelect(vehicle.id)}
               data-testid={`card-vehicle-${vehicle.id}`}
             >
-              <CardContent className="p-2 h-full flex flex-col justify-between">
+              <CardContent className="p-2 flex flex-col gap-1">
                 <div className="flex items-center justify-between">
-                  <Truck className="h-4 w-4 text-primary" />
-                  <Badge variant={hasInventory ? "secondary" : "outline"} className="text-[10px] px-1 py-0">
-                    {hasInventory ? itemsWithStock.length : 0}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Truck className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-semibold truncate" title={vehicle.number}>{vehicle.number}</span>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs font-semibold truncate" title={vehicle.number}>{vehicle.number}</div>
-                  <div className="text-[10px] text-muted-foreground truncate">{vehicle.type}</div>
-                </div>
+                <div className="text-[10px] text-muted-foreground">{vehicle.type}</div>
+                {hasInventory ? (
+                  <div className="mt-1 space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground">Total:</span>
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 font-mono">
+                        {totalQty.toFixed(1)} KG
+                      </Badge>
+                    </div>
+                    <div className="space-y-0.5 max-h-16 overflow-y-auto">
+                      {itemsWithStock.slice(0, 3).map((inv) => {
+                        const product = products.find(p => p.id === inv.productId);
+                        return (
+                          <div key={inv.productId} className="flex items-center justify-between text-[10px]">
+                            <span className="truncate max-w-16">{product?.name || "?"}</span>
+                            <span className="font-mono text-muted-foreground">{inv.quantity}</span>
+                          </div>
+                        );
+                      })}
+                      {itemsWithStock.length > 3 && (
+                        <div className="text-[10px] text-muted-foreground text-center">
+                          +{itemsWithStock.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-muted-foreground italic mt-1">Empty</div>
+                )}
               </CardContent>
             </Card>
           );
