@@ -948,43 +948,6 @@ export default function Payments() {
                                       })}
                                     </TableBody>
                                   </Table>
-                                  
-                                  <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
-                                    <span className="text-xs text-muted-foreground">Hamali:</span>
-                                    <Input
-                                      type="number"
-                                      className="h-7 w-16 text-center text-sm"
-                                      value={edited?.bags ?? 0}
-                                      onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
-                                      placeholder="Bags"
-                                      data-testid={`input-bags-${invoice.id}`}
-                                    />
-                                    <span className="text-xs">bags ×</span>
-                                    <Input
-                                      type="number"
-                                      className="h-7 w-16 text-center text-sm"
-                                      value={edited?.ratePerBag ?? 0}
-                                      onChange={(e) => updateHamaliRate(invoice.id, parseFloat(e.target.value) || 0)}
-                                      placeholder="₹/bag"
-                                      data-testid={`input-rate-${invoice.id}`}
-                                    />
-                                    <span className="text-xs">=</span>
-                                    <span className="text-sm font-medium font-mono">
-                                      ₹{(edited?.hamaliChargeAmount ?? 0).toFixed(0)}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center justify-end pt-2 border-t gap-4 text-sm">
-                                    <span className="text-muted-foreground">
-                                      Subtotal: <span className="font-mono">{totals.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                                    </span>
-                                    <span className="text-muted-foreground">
-                                      Hamali: <span className="font-mono">{(edited?.hamaliChargeAmount ?? 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                                    </span>
-                                    <span className="font-semibold">
-                                      Total: <span className="font-mono text-primary">{totals.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                                    </span>
-                                  </div>
                                 </CardContent>
                               </Card>
                             );
@@ -993,8 +956,54 @@ export default function Payments() {
                       </div>
                     </ScrollArea>
 
-                    <div className="pt-4 border-t space-y-4">
-                      <div className="flex items-center justify-between">
+                    <div className="pt-4 border-t space-y-3">
+                      {customerInvoices.map((invoice) => {
+                        const edited = editedInvoices[invoice.id];
+                        const totals = getInvoiceTotal(invoice.id);
+                        
+                        return (
+                          <div key={invoice.id} className="space-y-2 pb-3 border-b last:border-b-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-muted-foreground font-medium">{invoice.invoiceNumber}:</span>
+                              <span className="text-xs text-muted-foreground">Hamali:</span>
+                              <Input
+                                type="number"
+                                className="h-7 w-16 text-center text-sm"
+                                value={edited?.bags ?? 0}
+                                onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
+                                placeholder="Bags"
+                                data-testid={`input-bags-fixed-${invoice.id}`}
+                              />
+                              <span className="text-xs">bags ×</span>
+                              <Input
+                                type="number"
+                                className="h-7 w-16 text-center text-sm"
+                                value={edited?.ratePerBag ?? 0}
+                                onChange={(e) => updateHamaliRate(invoice.id, parseFloat(e.target.value) || 0)}
+                                placeholder="₹/bag"
+                                data-testid={`input-rate-fixed-${invoice.id}`}
+                              />
+                              <span className="text-xs">=</span>
+                              <span className="text-sm font-medium font-mono">
+                                ₹{(edited?.hamaliChargeAmount ?? 0).toFixed(0)}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-end gap-4 text-sm">
+                              <span className="text-muted-foreground">
+                                Subtotal: <span className="font-mono">{totals.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                              </span>
+                              <span className="text-muted-foreground">
+                                Hamali: <span className="font-mono">{(edited?.hamaliChargeAmount ?? 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                              </span>
+                              <span className="font-semibold">
+                                Total: <span className="font-mono text-primary">{totals.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+                      <div className="flex items-center justify-between pt-2">
                         <span className="text-lg font-medium">Grand Total (All Invoices):</span>
                         <span className="text-2xl font-bold font-mono text-primary" data-testid="text-grand-total">
                           {grandTotalAllInvoices.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
