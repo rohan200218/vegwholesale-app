@@ -47,6 +47,16 @@ The application is built with a modern web stack:
 -   **Recharts**: Charting library for data visualization in reports and dashboard.
 
 ## Recent Changes
+- December 10, 2025: Customer payment enhancement with invoice editing
+  - Two-step payment dialog: Select customer → Review/edit invoices → Finalize payment
+  - View all customer invoices with line items in payment dialog
+  - Inline editing of product prices per item
+  - Inline editing of Hamali charge per invoice
+  - Automatic total recalculation as prices are modified
+  - "Save Changes Only" option to persist edits without recording payment
+  - "Finalize & Record Payment" to save edits and record full payment
+  - New API endpoints: GET /api/customers/:id/invoices, PATCH /api/invoices/:id, PATCH /api/invoice-items/:id
+
 - December 10, 2025: Product stock synchronization with vehicle operations
   - Loading products onto vehicles (Sell page) now increases product.currentStock
   - Sales from vehicles now decrease product.currentStock
