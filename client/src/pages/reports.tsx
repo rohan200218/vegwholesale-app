@@ -15,8 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Package, ArrowUpRight, ArrowDownRight, RotateCcw, CircleCheck, CircleX, Receipt, CreditCard, Users, Download, Calendar, Filter, BarChart3 } from "lucide-react";
-import type { Product, StockMovement, Invoice, Customer } from "@shared/schema";
+import { TrendingUp, Package, ArrowUpRight, Receipt, CreditCard, Download, Calendar, Filter, Truck, Users, Scale, ShoppingBag, FileText, BarChart3 } from "lucide-react";
+import type { Product, Invoice, Customer, Vehicle, InvoiceItem } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
@@ -29,101 +29,24 @@ import {
   Pie,
   Cell,
   Legend,
-  LineChart,
-  Line,
-  ComposedChart,
-  Area,
 } from "recharts";
 
-type HamaliSummary = {
-  invoiceHamaliTotal: number;
-  directCashHamaliTotal: number;
-  totalHamaliCollected: number;
-  invoicesWithHamali: number;
-  invoicesWithoutHamali: number;
-  salesWithHamali: number;
-  salesWithoutHamali: number;
-};
-
-type HamaliCashPayment = {
-  id: string;
-  amount: number;
-  date: string;
-  paymentMethod: string;
-  customerId?: string;
-  invoiceId?: string;
-  invoiceNumber?: string;
-  totalBillAmount?: number;
-  notes?: string;
-};
-
-type InvoiceDetail = {
-  id: string;
-  invoiceNumber: string;
-  date: string;
-  customerName: string;
-  customerId: string;
-  subtotal: number;
-  includeHamaliCharge: boolean;
-  hamaliRatePerKg: number;
-  hamaliChargeAmount: number;
-  hamaliPaidByCash: boolean;
-  totalKgWeight: number;
-  grandTotal: number;
-};
-
-type CustomerPaymentSummary = {
-  customerId: string;
-  customerName: string;
-  totalInvoiced: number;
-  totalPaid: number;
-  balance: number;
-  hamaliAmount: number;
-  paymentStatus: "paid" | "partial" | "unpaid";
-};
-
-type ProfitLossReport = {
-  totalPurchases: number;
-  totalReturns: number;
-  netPurchases: number;
-  totalSales: number;
-  grossProfit: number;
-  productProfits: {
-    id: string;
-    name: string;
-    purchasePrice: number;
-    salePrice: number;
-    margin: number;
-    marginPercent: number;
-  }[];
-  hamaliSummary?: HamaliSummary;
-  invoiceDetails?: InvoiceDetail[];
-  customerPaymentSummary?: CustomerPaymentSummary[];
-};
-
-type PeriodType = "all" | "daily" | "monthly";
+type PeriodType = "today" | "week" | "month" | "custom";
 
 type DailySummary = {
   date: string;
   sales: number;
   invoiceCount: number;
-  hamaliFromInvoices: number;
-  hamaliCash: number;
-  totalHamali: number;
-};
-
-type MonthlySummary = {
-  month: string;
-  monthLabel: string;
-  sales: number;
-  invoiceCount: number;
-  hamaliFromInvoices: number;
-  hamaliCash: number;
-  totalHamali: number;
+  hamaliTotal: number;
+  totalWeight: number;
 };
 
 function formatCurrency(amount: number): string {
   return amount.toLocaleString("en-IN", { style: "currency", currency: "INR" });
+}
+
+function formatWeight(weight: number): string {
+  return `${weight.toFixed(2)} KG`;
 }
 
 function downloadCSV(data: string[][], filename: string) {
@@ -138,82 +61,77 @@ function downloadCSV(data: string[][], filename: string) {
 
 export default function Reports() {
   const today = new Date().toISOString().split("T")[0];
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
   
-  const [startDate, setStartDate] = useState(thirtyDaysAgo);
-  const [endDate, setEndDate] = useState(today);
-  const [periodType, setPeriodType] = useState<PeriodType>("all");
+  const [periodType, setPeriodType] = useState<PeriodType>("today");
+  const [customStartDate, setCustomStartDate] = useState(monthAgo);
+  const [customEndDate, setCustomEndDate] = useState(today);
 
-  const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
+  const { startDate, endDate } = useMemo(() => {
+    switch (periodType) {
+      case "today":
+        return { startDate: today, endDate: today };
+      case "week":
+        return { startDate: weekAgo, endDate: today };
+      case "month":
+        return { startDate: monthAgo, endDate: today };
+      case "custom":
+        return { startDate: customStartDate, endDate: customEndDate };
+      default:
+        return { startDate: today, endDate: today };
+    }
+  }, [periodType, customStartDate, customEndDate, today, weekAgo, monthAgo]);
+
+  const { data: products = [] } = useQuery<Product[]>({
     queryKey: ["/api/products"],
-  });
-
-  const { data: stockMovements = [], isLoading: movementsLoading } = useQuery<StockMovement[]>({
-    queryKey: ["/api/stock-movements"],
   });
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery<Invoice[]>({
     queryKey: ["/api/invoices"],
   });
 
+  const { data: invoiceItems = [] } = useQuery<InvoiceItem[]>({
+    queryKey: ["/api/invoice-items"],
+  });
+
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
   });
 
-  const { data: hamaliCashPayments = [] } = useQuery<HamaliCashPayment[]>({
-    queryKey: ["/api/hamali-cash"],
-  });
-
-  const { data: profitLoss, isLoading: profitLoading } = useQuery<ProfitLossReport>({
-    queryKey: ["/api/reports/profit-loss"],
+  const { data: vehicles = [] } = useQuery<Vehicle[]>({
+    queryKey: ["/api/vehicles"],
   });
 
   const getCustomerName = (id: string) => customers.find((c) => c.id === id)?.name || "Unknown";
   const getProductName = (id: string) => products.find((p) => p.id === id)?.name || "Unknown";
+  const getVehicleNumber = (id: string | null) => vehicles.find((v) => v.id === id)?.number || "-";
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
       if (startDate && inv.date < startDate) return false;
       if (endDate && inv.date > endDate) return false;
       return true;
-    });
+    }).sort((a, b) => b.date.localeCompare(a.date) || b.invoiceNumber.localeCompare(a.invoiceNumber));
   }, [invoices, startDate, endDate]);
 
-  const filteredHamaliCash = useMemo(() => {
-    return hamaliCashPayments.filter((payment) => {
-      if (startDate && payment.date < startDate) return false;
-      if (endDate && payment.date > endDate) return false;
-      return true;
-    });
-  }, [hamaliCashPayments, startDate, endDate]);
-
-  const filteredMovements = stockMovements.filter((m) => {
-    if (startDate && m.date < startDate) return false;
-    if (endDate && m.date > endDate) return false;
-    return true;
-  });
-
-  const filteredSummary = useMemo(() => {
-    const totalSalesWithHamali = filteredInvoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
-    const totalSubtotal = filteredInvoices.reduce((sum, inv) => sum + inv.subtotal, 0);
-    const invoiceHamaliTotal = filteredInvoices
-      .filter(inv => inv.includeHamaliCharge)
-      .reduce((sum, inv) => sum + (inv.hamaliChargeAmount || 0), 0);
-    const directCashHamaliTotal = filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0);
-    const invoicesWithHamali = filteredInvoices.filter(inv => inv.includeHamaliCharge).length;
-    const invoicesWithoutHamali = filteredInvoices.filter(inv => !inv.includeHamaliCharge).length;
+  const summary = useMemo(() => {
+    const totalSales = filteredInvoices.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+    const totalSubtotal = filteredInvoices.reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
+    const totalHamali = filteredInvoices.reduce((sum, inv) => sum + (inv.hamaliChargeAmount || 0), 0);
+    const totalWeight = filteredInvoices.reduce((sum, inv) => sum + (inv.totalKgWeight || 0), 0);
+    const invoiceCount = filteredInvoices.length;
+    const invoicesWithHamali = filteredInvoices.filter(inv => inv.includeHamaliCharge && (inv.hamaliChargeAmount || 0) > 0).length;
 
     return {
-      totalSalesWithHamali,
+      totalSales,
       totalSubtotal,
-      invoiceHamaliTotal,
-      directCashHamaliTotal,
-      totalHamaliCollected: invoiceHamaliTotal + directCashHamaliTotal,
+      totalHamali,
+      totalWeight,
+      invoiceCount,
       invoicesWithHamali,
-      invoicesWithoutHamali,
-      invoiceCount: filteredInvoices.length,
     };
-  }, [filteredInvoices, filteredHamaliCash]);
+  }, [filteredInvoices]);
 
   const dailySummary = useMemo((): DailySummary[] => {
     const dateMap = new Map<string, DailySummary>();
@@ -223,92 +141,34 @@ export default function Reports() {
         date: inv.date,
         sales: 0,
         invoiceCount: 0,
-        hamaliFromInvoices: 0,
-        hamaliCash: 0,
-        totalHamali: 0,
+        hamaliTotal: 0,
+        totalWeight: 0,
       };
-      existing.sales += inv.grandTotal;
+      existing.sales += inv.grandTotal || 0;
       existing.invoiceCount += 1;
-      if (inv.includeHamaliCharge) {
-        existing.hamaliFromInvoices += inv.hamaliChargeAmount || 0;
-      }
+      existing.hamaliTotal += inv.hamaliChargeAmount || 0;
+      existing.totalWeight += inv.totalKgWeight || 0;
       dateMap.set(inv.date, existing);
     });
 
-    filteredHamaliCash.forEach((payment) => {
-      const existing = dateMap.get(payment.date) || {
-        date: payment.date,
-        sales: 0,
-        invoiceCount: 0,
-        hamaliFromInvoices: 0,
-        hamaliCash: 0,
-        totalHamali: 0,
-      };
-      existing.hamaliCash += payment.amount;
-      dateMap.set(payment.date, existing);
-    });
+    return Array.from(dateMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+  }, [filteredInvoices]);
 
-    const result = Array.from(dateMap.values()).map((day) => ({
-      ...day,
-      totalHamali: day.hamaliFromInvoices + day.hamaliCash,
+  const chartData = useMemo(() => {
+    return [...dailySummary].reverse().slice(-14).map((day) => ({
+      date: new Date(day.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+      sales: day.sales,
+      hamali: day.hamaliTotal,
     }));
+  }, [dailySummary]);
 
-    return result.sort((a, b) => b.date.localeCompare(a.date));
-  }, [filteredInvoices, filteredHamaliCash]);
+  const salesBreakdownData = useMemo(() => {
+    return [
+      { name: "Product Sales", value: summary.totalSubtotal },
+      { name: "Hamali Charges", value: summary.totalHamali },
+    ].filter((d) => d.value > 0);
+  }, [summary]);
 
-  const monthlySummary = useMemo((): MonthlySummary[] => {
-    const monthMap = new Map<string, MonthlySummary>();
-
-    filteredInvoices.forEach((inv) => {
-      const month = inv.date.substring(0, 7);
-      const monthLabel = new Date(inv.date).toLocaleDateString("en-IN", { year: "numeric", month: "long" });
-      const existing = monthMap.get(month) || {
-        month,
-        monthLabel,
-        sales: 0,
-        invoiceCount: 0,
-        hamaliFromInvoices: 0,
-        hamaliCash: 0,
-        totalHamali: 0,
-      };
-      existing.sales += inv.grandTotal;
-      existing.invoiceCount += 1;
-      if (inv.includeHamaliCharge) {
-        existing.hamaliFromInvoices += inv.hamaliChargeAmount || 0;
-      }
-      monthMap.set(month, existing);
-    });
-
-    filteredHamaliCash.forEach((payment) => {
-      const month = payment.date.substring(0, 7);
-      const monthLabel = new Date(payment.date).toLocaleDateString("en-IN", { year: "numeric", month: "long" });
-      const existing = monthMap.get(month) || {
-        month,
-        monthLabel,
-        sales: 0,
-        invoiceCount: 0,
-        hamaliFromInvoices: 0,
-        hamaliCash: 0,
-        totalHamali: 0,
-      };
-      existing.hamaliCash += payment.amount;
-      monthMap.set(month, existing);
-    });
-
-    const result = Array.from(monthMap.values()).map((m) => ({
-      ...m,
-      totalHamali: m.hamaliFromInvoices + m.hamaliCash,
-    }));
-
-    return result.sort((a, b) => b.month.localeCompare(a.month));
-  }, [filteredInvoices, filteredHamaliCash]);
-
-  const stockInTotal = filteredMovements.filter((m) => m.type === "in").reduce((sum, m) => sum + m.quantity, 0);
-  const stockOutTotal = filteredMovements.filter((m) => m.type === "out").reduce((sum, m) => sum + m.quantity, 0);
-
-  const lowStockProducts = products.filter((p) => p.currentStock <= (p.reorderLevel || 10));
-
-  // Chart colors
   const CHART_COLORS = [
     "hsl(var(--chart-1))",
     "hsl(var(--chart-2))",
@@ -317,170 +177,55 @@ export default function Reports() {
     "hsl(var(--chart-5))",
   ];
 
-  // Chart data: Daily sales trend (bar chart) - depends on dailySummary which already depends on filteredInvoices/filteredHamaliCash
-  const dailySalesChartData = useMemo(() => {
-    return [...dailySummary].reverse().slice(-14).map((day) => ({
-      date: new Date(day.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
-      sales: day.sales,
-      hamali: day.totalHamali,
-    }));
-  }, [dailySummary, startDate, endDate]);
-
-  // Chart data: Hamali breakdown (pie chart) - depends on filteredSummary which includes date filtering
-  const hamaliBreakdownData = useMemo(() => {
-    return [
-      { name: "Hamali in Bills", value: filteredSummary.invoiceHamaliTotal },
-      { name: "Hamali Direct Cash", value: filteredSummary.directCashHamaliTotal },
-    ].filter((d) => d.value > 0);
-  }, [filteredSummary, startDate, endDate]);
-
-  // Chart data: Stock distribution by product (pie chart)
-  const stockDistributionData = useMemo(() => {
-    return products
-      .filter((p) => p.currentStock > 0)
-      .map((p) => ({
-        name: p.name,
-        value: p.currentStock * p.purchasePrice,
-        stock: p.currentStock,
-        unit: p.unit,
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
-  }, [products]);
-
-  // Chart data: Invoice vs Hamali breakdown - depends on filteredSummary which includes date filtering
-  const invoiceBreakdownData = useMemo(() => {
-    return [
-      { name: "Product Sales", value: filteredSummary.totalSubtotal },
-      { name: "Hamali Collected", value: filteredSummary.totalHamaliCollected },
-    ].filter((d) => d.value > 0);
-  }, [filteredSummary, startDate, endDate]);
-
-  // Chart data: Stock in vs out - depends on stock totals which come from filteredMovements
-  const stockFlowData = useMemo(() => {
-    return [
-      { name: "Stock In", value: stockInTotal },
-      { name: "Stock Out", value: stockOutTotal },
+  const downloadSalesReport = () => {
+    const headers = ["Invoice #", "Date", "Vehicle", "Customer", "Weight (KG)", "Subtotal", "Hamali", "Grand Total"];
+    const rows = filteredInvoices.map((inv) => [
+      inv.invoiceNumber || "",
+      inv.date || "",
+      getVehicleNumber(inv.vehicleId),
+      getCustomerName(inv.customerId),
+      (inv.totalKgWeight || 0).toFixed(2),
+      (inv.subtotal || 0).toFixed(2),
+      (inv.hamaliChargeAmount || 0).toFixed(2),
+      (inv.grandTotal || 0).toFixed(2),
+    ]);
+    const totals = [
+      "TOTAL",
+      "",
+      "",
+      `${filteredInvoices.length} sales`,
+      summary.totalWeight.toFixed(2),
+      summary.totalSubtotal.toFixed(2),
+      summary.totalHamali.toFixed(2),
+      summary.totalSales.toFixed(2),
     ];
-  }, [stockInTotal, stockOutTotal, startDate, endDate]);
+    downloadCSV([headers, ...rows, totals], `sales-report-${startDate}-to-${endDate}.csv`);
+  };
 
-  // Chart data: Profit margins by product
-  const profitMarginChartData = useMemo(() => {
-    if (!profitLoss?.productProfits) return [];
-    return profitLoss.productProfits
-      .map((p) => ({
-        name: p.name.length > 10 ? p.name.slice(0, 10) + "..." : p.name,
-        fullName: p.name,
-        profit: p.margin,
-        marginPercent: p.marginPercent,
-      }))
-      .sort((a, b) => b.profit - a.profit)
-      .slice(0, 8);
-  }, [profitLoss]);
-
-  const downloadDailyReport = () => {
-    const headers = ["Date", "Sales", "Invoices", "Hamali (Invoice)", "Hamali (Cash)", "Total Hamali"];
+  const downloadDailySummaryReport = () => {
+    const headers = ["Date", "Total Sales", "Invoice Count", "Total Hamali", "Total Weight (KG)"];
     const rows = dailySummary.map((day) => [
       day.date,
       day.sales.toFixed(2),
       day.invoiceCount.toString(),
-      day.hamaliFromInvoices.toFixed(2),
-      day.hamaliCash.toFixed(2),
-      day.totalHamali.toFixed(2),
+      day.hamaliTotal.toFixed(2),
+      day.totalWeight.toFixed(2),
     ]);
     const totals = [
       "TOTAL",
       dailySummary.reduce((sum, d) => sum + d.sales, 0).toFixed(2),
       dailySummary.reduce((sum, d) => sum + d.invoiceCount, 0).toString(),
-      dailySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0).toFixed(2),
-      dailySummary.reduce((sum, d) => sum + d.hamaliCash, 0).toFixed(2),
-      dailySummary.reduce((sum, d) => sum + d.totalHamali, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.hamaliTotal, 0).toFixed(2),
+      dailySummary.reduce((sum, d) => sum + d.totalWeight, 0).toFixed(2),
     ];
-    downloadCSV([headers, ...rows, totals], `daily-report-${startDate}-to-${endDate}.csv`);
+    downloadCSV([headers, ...rows, totals], `daily-summary-${startDate}-to-${endDate}.csv`);
   };
 
-  const downloadMonthlyReport = () => {
-    const headers = ["Month", "Sales", "Invoices", "Hamali (Invoice)", "Hamali (Cash)", "Total Hamali"];
-    const rows = monthlySummary.map((m) => [
-      m.monthLabel,
-      m.sales.toFixed(2),
-      m.invoiceCount.toString(),
-      m.hamaliFromInvoices.toFixed(2),
-      m.hamaliCash.toFixed(2),
-      m.totalHamali.toFixed(2),
-    ]);
-    const totals = [
-      "TOTAL",
-      monthlySummary.reduce((sum, d) => sum + d.sales, 0).toFixed(2),
-      monthlySummary.reduce((sum, d) => sum + d.invoiceCount, 0).toString(),
-      monthlySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0).toFixed(2),
-      monthlySummary.reduce((sum, d) => sum + d.hamaliCash, 0).toFixed(2),
-      monthlySummary.reduce((sum, d) => sum + d.totalHamali, 0).toFixed(2),
-    ];
-    downloadCSV([headers, ...rows, totals], `monthly-report-${startDate}-to-${endDate}.csv`);
-  };
-
-  const downloadInvoiceReport = () => {
-    const headers = ["Invoice #", "Date", "Customer", "Subtotal", "Hamali Included", "Rate/KG", "Total KG", "Hamali Amount", "Paid Cash", "Grand Total"];
-    const rows = filteredInvoices.map((inv) => [
-      inv.invoiceNumber,
-      inv.date,
-      getCustomerName(inv.customerId),
-      inv.subtotal.toFixed(2),
-      inv.includeHamaliCharge ? "Yes" : "No",
-      inv.includeHamaliCharge ? `${inv.hamaliRatePerKg}` : "-",
-      inv.includeHamaliCharge ? `${inv.totalKgWeight}` : "-",
-      inv.includeHamaliCharge ? (inv.hamaliChargeAmount || 0).toFixed(2) : "0",
-      inv.hamaliPaidByCash ? "Yes" : "No",
-      inv.grandTotal.toFixed(2),
-    ]);
-    const totals = [
-      "TOTALS",
-      "",
-      `${filteredInvoices.length} invoices`,
-      filteredSummary.totalSubtotal.toFixed(2),
-      `${filteredSummary.invoicesWithHamali} included`,
-      "",
-      "",
-      filteredSummary.invoiceHamaliTotal.toFixed(2),
-      "",
-      filteredSummary.totalSalesWithHamali.toFixed(2),
-    ];
-    downloadCSV([headers, ...rows, totals], `invoice-report-${startDate}-to-${endDate}.csv`);
-  };
-
-  const downloadHamaliCashReport = () => {
-    const headers = ["Date", "Invoice #", "Customer", "Hamali Amount", "Total Bill", "Payment Method", "Notes"];
-    const rows = filteredHamaliCash.map((payment) => [
-      payment.date,
-      payment.invoiceNumber || "Manual Entry",
-      payment.customerId ? getCustomerName(payment.customerId) : "-",
-      payment.amount.toFixed(2),
-      payment.totalBillAmount ? payment.totalBillAmount.toFixed(2) : "-",
-      payment.paymentMethod,
-      payment.notes || "-",
-    ]);
-    const totals = ["TOTAL", "", "", filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0).toFixed(2), "", "", ""];
-    downloadCSV([headers, ...rows, totals], `hamali-cash-report-${startDate}-to-${endDate}.csv`);
-  };
-
-  const downloadStockReport = () => {
-    const headers = ["Date", "Product", "Type", "Quantity", "Reason"];
-    const rows = filteredMovements.map((m) => [
-      m.date,
-      getProductName(m.productId),
-      m.type.toUpperCase(),
-      m.quantity.toString(),
-      m.reason || "-",
-    ]);
-    downloadCSV([headers, ...rows], `stock-movements-${startDate}-to-${endDate}.csv`);
-  };
-
-  if (productsLoading || movementsLoading || profitLoading || invoicesLoading) {
+  if (invoicesLoading) {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
@@ -496,903 +241,402 @@ export default function Reports() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-semibold" data-testid="text-page-title">
-          Reports
+          Sales Reports
         </h1>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={downloadSalesReport} data-testid="button-download-sales">
+            <Download className="h-4 w-4 mr-1" />
+            Sales CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadDailySummaryReport} data-testid="button-download-daily">
+            <Download className="h-4 w-4 mr-1" />
+            Daily CSV
+          </Button>
+        </div>
       </div>
 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Filter className="h-4 w-4" />
-            Report Filters
+            Period Filter
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-end gap-4 flex-wrap">
             <div className="space-y-2">
-              <Label>From Date</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                data-testid="input-filter-start-date"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>To Date</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                data-testid="input-filter-end-date"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>View By</Label>
+              <Label>Quick Select</Label>
               <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
                 <SelectTrigger className="w-40" data-testid="select-period-type">
-                  <SelectValue placeholder="Select view" />
+                  <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Data</SelectItem>
-                  <SelectItem value="daily">Day-wise</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="week">Last 7 Days</SelectItem>
+                  <SelectItem value="month">Last 30 Days</SelectItem>
+                  <SelectItem value="custom">Custom Range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setStartDate(thirtyDaysAgo);
-                  setEndDate(today);
-                }}
-                data-testid="button-reset-filters"
-              >
-                Reset
-              </Button>
-            </div>
+            {periodType === "custom" && (
+              <>
+                <div className="space-y-2">
+                  <Label>From Date</Label>
+                  <Input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    data-testid="input-filter-start-date"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>To Date</Label>
+                  <Input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    data-testid="input-filter-end-date"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">
+              Total Sales
+            </CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-total-sales">
+              {formatCurrency(summary.totalSales)}
+            </div>
+            <p className="text-xs text-muted-foreground">{summary.invoiceCount} sales</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Product Sales (Subtotal)
+              Product Sales
             </CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-subtotal">
-              {formatCurrency(filteredSummary.totalSubtotal)}
+            <div className="text-2xl font-bold font-mono" data-testid="text-product-sales">
+              {formatCurrency(summary.totalSubtotal)}
             </div>
             <p className="text-xs text-muted-foreground">Without Hamali</p>
           </CardContent>
         </Card>
 
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-primary">
-              Total Sales (Grand Total)
-            </CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-filtered-sales">
-              {formatCurrency(filteredSummary.totalSalesWithHamali)}
-            </div>
-            <p className="text-xs text-muted-foreground">{filteredSummary.invoiceCount} invoices (with Hamali)</p>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Hamali in Bills
-            </CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-invoices">
-              {formatCurrency(filteredSummary.invoiceHamaliTotal)}
-            </div>
-            <p className="text-xs text-muted-foreground">{filteredSummary.invoicesWithHamali} invoices included</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Hamali Direct Cash
+              Hamali Charges
             </CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-hamali-cash">
-              {formatCurrency(filteredSummary.directCashHamaliTotal)}
+            <div className="text-2xl font-bold font-mono" data-testid="text-hamali-total">
+              {formatCurrency(summary.totalHamali)}
             </div>
-            <p className="text-xs text-muted-foreground">{filteredHamaliCash.length} cash payments</p>
+            <p className="text-xs text-muted-foreground">{summary.invoicesWithHamali} sales with Hamali</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Hamali Collected
+              Total Weight
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <Scale className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-filtered-total-hamali">
-              {formatCurrency(filteredSummary.totalHamaliCollected)}
+            <div className="text-2xl font-bold font-mono" data-testid="text-total-weight">
+              {formatWeight(summary.totalWeight)}
             </div>
-            <p className="text-xs text-muted-foreground">Bills + Direct Cash</p>
+            <p className="text-xs text-muted-foreground">Sold</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Invoice Count
+              Avg per Sale
             </CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono" data-testid="text-invoice-count">
-              {filteredSummary.invoiceCount}
+            <div className="text-2xl font-bold font-mono" data-testid="text-avg-sale">
+              {formatCurrency(summary.invoiceCount > 0 ? summary.totalSales / summary.invoiceCount : 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {filteredSummary.invoicesWithHamali} with / {filteredSummary.invoicesWithoutHamali} without Hamali
-            </p>
+            <p className="text-xs text-muted-foreground">Per transaction</p>
           </CardContent>
         </Card>
       </div>
 
-      {periodType === "daily" && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Day-wise Report
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={downloadDailyReport} data-testid="button-download-daily">
-              <Download className="h-4 w-4 mr-1" />
-              Download CSV
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Sales</TableHead>
-                  <TableHead className="text-right">Invoices</TableHead>
-                  <TableHead className="text-right">Hamali (Invoice)</TableHead>
-                  <TableHead className="text-right">Hamali (Cash)</TableHead>
-                  <TableHead className="text-right">Total Hamali</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dailySummary.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No data for selected date range
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <>
-                    {dailySummary.map((day) => (
-                      <TableRow key={day.date} data-testid={`row-daily-${day.date}`}>
-                        <TableCell className="font-medium">{day.date}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(day.sales)}</TableCell>
-                        <TableCell className="text-right">{day.invoiceCount}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(day.hamaliFromInvoices)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(day.hamaliCash)}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(day.totalHamali)}</TableCell>
-                      </TableRow>
-                    ))}
-                    <TableRow className="bg-muted/50 font-bold">
-                      <TableCell>TOTAL</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.sales, 0))}</TableCell>
-                      <TableCell className="text-right">{dailySummary.reduce((sum, d) => sum + d.invoiceCount, 0)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0))}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.hamaliCash, 0))}</TableCell>
-                      <TableCell className="text-right font-mono text-primary">{formatCurrency(dailySummary.reduce((sum, d) => sum + d.totalHamali, 0))}</TableCell>
-                    </TableRow>
-                  </>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {periodType === "monthly" && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Monthly Report
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={downloadMonthlyReport} data-testid="button-download-monthly">
-              <Download className="h-4 w-4 mr-1" />
-              Download CSV
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Month</TableHead>
-                  <TableHead className="text-right">Sales</TableHead>
-                  <TableHead className="text-right">Invoices</TableHead>
-                  <TableHead className="text-right">Hamali (Invoice)</TableHead>
-                  <TableHead className="text-right">Hamali (Cash)</TableHead>
-                  <TableHead className="text-right">Total Hamali</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {monthlySummary.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                      No data for selected date range
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <>
-                    {monthlySummary.map((m) => (
-                      <TableRow key={m.month} data-testid={`row-monthly-${m.month}`}>
-                        <TableCell className="font-medium">{m.monthLabel}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(m.sales)}</TableCell>
-                        <TableCell className="text-right">{m.invoiceCount}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(m.hamaliFromInvoices)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(m.hamaliCash)}</TableCell>
-                        <TableCell className="text-right font-mono font-semibold text-primary">{formatCurrency(m.totalHamali)}</TableCell>
-                      </TableRow>
-                    ))}
-                    <TableRow className="bg-muted/50 font-bold">
-                      <TableCell>TOTAL</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.sales, 0))}</TableCell>
-                      <TableCell className="text-right">{monthlySummary.reduce((sum, d) => sum + d.invoiceCount, 0)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.hamaliFromInvoices, 0))}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.hamaliCash, 0))}</TableCell>
-                      <TableCell className="text-right font-mono text-primary">{formatCurrency(monthlySummary.reduce((sum, d) => sum + d.totalHamali, 0))}</TableCell>
-                    </TableRow>
-                  </>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="analytics" className="space-y-4">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="analytics" data-testid="tab-analytics">
+      <Tabs defaultValue="sales" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="sales" data-testid="tab-sales">
+            <FileText className="h-4 w-4 mr-1" />
+            Sales Details
+          </TabsTrigger>
+          <TabsTrigger value="daily" data-testid="tab-daily">
+            <Calendar className="h-4 w-4 mr-1" />
+            Daily Summary
+          </TabsTrigger>
+          <TabsTrigger value="charts" data-testid="tab-charts">
             <BarChart3 className="h-4 w-4 mr-1" />
-            Analytics
+            Charts
           </TabsTrigger>
-          <TabsTrigger value="invoices" data-testid="tab-invoices">
-            <Receipt className="h-4 w-4 mr-1" />
-            Invoice Details
-          </TabsTrigger>
-          <TabsTrigger value="hamali-cash" data-testid="tab-hamali-cash">
-            <CreditCard className="h-4 w-4 mr-1" />
-            Hamali Cash Payments
-          </TabsTrigger>
-          <TabsTrigger value="profit" data-testid="tab-profit">Profit Margins</TabsTrigger>
-          <TabsTrigger value="stock" data-testid="tab-stock">Stock Movements</TabsTrigger>
-          <TabsTrigger value="lowstock" data-testid="tab-lowstock">Low Stock Alerts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Daily Sales & Hamali Trend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72" data-testid="chart-daily-sales">
-                  {dailySalesChartData.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                      No sales data for selected period
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <ComposedChart data={dailySalesChartData}>
-                        <XAxis 
-                          dataKey="date" 
-                          tick={{ fontSize: 11 }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 11 }}
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
-                        />
-                        <Tooltip 
-                          formatter={(value: number, name: string) => [
-                            `₹${value.toLocaleString("en-IN")}`, 
-                            name === "sales" ? "Sales" : "Hamali"
-                          ]}
-                          contentStyle={{ 
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "6px",
-                          }}
-                        />
-                        <Legend />
-                        <Bar 
-                          dataKey="sales" 
-                          name="Sales"
-                          fill="hsl(var(--primary))"
-                          radius={[4, 4, 0, 0]}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="hamali" 
-                          name="Hamali"
-                          stroke="hsl(var(--chart-2))"
-                          strokeWidth={2}
-                          dot={{ fill: "hsl(var(--chart-2))" }}
-                        />
-                      </ComposedChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Revenue Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72" data-testid="chart-revenue-breakdown">
-                  {invoiceBreakdownData.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                      No revenue data for selected period
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={invoiceBreakdownData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          paddingAngle={2}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                          labelLine={false}
-                        >
-                          {invoiceBreakdownData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          formatter={(value: number) => [`₹${value.toLocaleString("en-IN")}`, "Amount"]}
-                          contentStyle={{ 
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "6px",
-                          }}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Hamali Collection</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64" data-testid="chart-hamali-breakdown">
-                  {hamaliBreakdownData.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                      No Hamali data for selected period
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={hamaliBreakdownData}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          dataKey="value"
-                          label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                        >
-                          {hamaliBreakdownData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          formatter={(value: number) => [`₹${value.toLocaleString("en-IN")}`, "Amount"]}
-                          contentStyle={{ 
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "6px",
-                          }}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Stock Value Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64" data-testid="chart-stock-distribution">
-                  {stockDistributionData.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                      No stock data available
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={stockDistributionData}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          dataKey="value"
-                          label={({ name }) => name.length > 8 ? name.slice(0, 8) + "..." : name}
-                        >
-                          {stockDistributionData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip 
-                          formatter={(value: number, _, props) => [
-                            `₹${value.toLocaleString("en-IN")} (${props.payload.stock} ${props.payload.unit})`,
-                            "Value"
-                          ]}
-                          contentStyle={{ 
-                            backgroundColor: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "6px",
-                          }}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Stock Flow</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-64" data-testid="chart-stock-flow">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={stockFlowData} layout="vertical">
-                      <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={70} />
-                      <Tooltip 
-                        formatter={(value: number) => [`${value} units`, "Quantity"]}
-                        contentStyle={{ 
-                          backgroundColor: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "6px",
-                        }}
-                      />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                        <Cell fill="hsl(var(--chart-1))" />
-                        <Cell fill="hsl(var(--chart-2))" />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
+        <TabsContent value="sales" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Product Profit Margins</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Receipt className="h-4 w-4" />
+                Sales List ({filteredInvoices.length})
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-72" data-testid="chart-profit-margins">
-                {profitMarginChartData.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    No profit data available
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={profitMarginChartData}>
-                      <XAxis 
-                        dataKey="name" 
-                        tick={{ fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis 
-                        tick={{ fontSize: 11 }}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
-                      />
-                      <Tooltip 
-                        formatter={(value: number, name: string, props) => {
-                          if (name === "profit") {
-                            return [`₹${value.toLocaleString("en-IN")} (${props.payload.marginPercent.toFixed(1)}% margin)`, props.payload.fullName];
-                          }
-                          return [value, name];
-                        }}
-                        contentStyle={{ 
-                          backgroundColor: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "6px",
-                        }}
-                      />
-                      <Bar 
-                        dataKey="profit" 
-                        name="Profit"
-                        fill="hsl(var(--primary))"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="invoices" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle>Invoice Details ({filteredInvoices.length})</CardTitle>
-              <Button variant="outline" size="sm" onClick={downloadInvoiceReport} data-testid="button-download-invoices">
-                <Download className="h-4 w-4 mr-1" />
-                Download CSV
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
-                    <TableHead className="text-center">Hamali Status</TableHead>
-                    <TableHead className="text-right">Rate/KG</TableHead>
-                    <TableHead className="text-right">Hamali Amount</TableHead>
-                    <TableHead className="text-right">Grand Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInvoices.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                        No invoices found for selected date range
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    <>
-                      {filteredInvoices.map((invoice) => (
-                        <TableRow key={invoice.id} data-testid={`row-invoice-${invoice.id}`}>
-                          <TableCell className="font-medium font-mono">{invoice.invoiceNumber}</TableCell>
-                          <TableCell>{invoice.date}</TableCell>
-                          <TableCell>{getCustomerName(invoice.customerId)}</TableCell>
-                          <TableCell className="text-right font-mono">
-                            {formatCurrency(invoice.subtotal)}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {invoice.includeHamaliCharge ? (
-                              <Badge variant="default" className="gap-1">
-                                <CircleCheck className="h-3 w-3" />
-                                Included
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="gap-1">
-                                <CircleX className="h-3 w-3" />
-                                Excluded
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {invoice.includeHamaliCharge ? `${invoice.hamaliRatePerKg}/KG` : "-"}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-primary font-semibold">
-                            {invoice.includeHamaliCharge 
-                              ? formatCurrency(invoice.hamaliChargeAmount || 0)
-                              : "-"
-                            }
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-semibold">
-                            {formatCurrency(invoice.grandTotal)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/50 font-bold border-t-2">
-                        <TableCell colSpan={3}>TOTALS</TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(filteredSummary.totalSubtotal)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className="text-xs">{filteredSummary.invoicesWithHamali} included</span>
-                        </TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right font-mono text-primary">
-                          {formatCurrency(filteredSummary.invoiceHamaliTotal)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-primary">
-                          {formatCurrency(filteredSummary.totalSalesWithHamali)}
-                        </TableCell>
+              {filteredInvoices.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ShoppingBag className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No sales found for this period</p>
+                  <p className="text-sm">Create sales from the Sell tab</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Vehicle</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead className="text-right">Weight</TableHead>
+                        <TableHead className="text-right">Subtotal</TableHead>
+                        <TableHead className="text-right">Hamali</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
                       </TableRow>
-                    </>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="hamali-cash" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle>Hamali Cash Payments ({filteredHamaliCash.length})</CardTitle>
-              <Button variant="outline" size="sm" onClick={downloadHamaliCashReport} data-testid="button-download-hamali-cash">
-                <Download className="h-4 w-4 mr-1" />
-                Download CSV
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="text-right">Hamali Amount</TableHead>
-                    <TableHead className="text-right">Total Bill</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Notes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredHamaliCash.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        No hamali cash payments for selected date range
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    <>
-                      {filteredHamaliCash.map((payment) => (
-                        <TableRow key={payment.id} data-testid={`row-hamali-cash-${payment.id}`}>
-                          <TableCell>{payment.date}</TableCell>
-                          <TableCell className="font-mono">
-                            {payment.invoiceNumber ? (
-                              <Badge variant="outline">{payment.invoiceNumber}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground">Manual Entry</span>
-                            )}
+                    </TableHeader>
+                    <TableBody>
+                      {filteredInvoices.map((inv) => (
+                        <TableRow key={inv.id} data-testid={`row-sale-${inv.id}`}>
+                          <TableCell className="font-mono text-sm">
+                            {inv.invoiceNumber}
                           </TableCell>
-                          <TableCell className="font-medium">
-                            {payment.customerId ? getCustomerName(payment.customerId) : "-"}
-                          </TableCell>
-                          <TableCell className="text-right font-mono font-semibold text-primary">
-                            {formatCurrency(payment.amount)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {payment.totalBillAmount ? formatCurrency(payment.totalBillAmount) : "-"}
+                          <TableCell>{inv.date}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Truck className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm">{getVehicleNumber(inv.vehicleId)}</span>
+                            </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">{payment.paymentMethod}</Badge>
+                            <div className="flex items-center gap-1">
+                              <Users className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm">{getCustomerName(inv.customerId)}</span>
+                            </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{payment.notes || "-"}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {(inv.totalKgWeight || 0).toFixed(2)} KG
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {formatCurrency(inv.subtotal)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {(inv.hamaliChargeAmount || 0) > 0 ? (
+                              <Badge variant="secondary" className="font-mono">
+                                {formatCurrency(inv.hamaliChargeAmount || 0)}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold">
+                            {formatCurrency(inv.grandTotal)}
+                          </TableCell>
                         </TableRow>
                       ))}
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={3}>TOTAL</TableCell>
+                      <TableRow className="bg-muted/50 font-semibold">
+                        <TableCell colSpan={4}>TOTAL</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {summary.totalWeight.toFixed(2)} KG
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(summary.totalSubtotal)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(summary.totalHamali)}
+                        </TableCell>
                         <TableCell className="text-right font-mono text-primary">
-                          {formatCurrency(filteredHamaliCash.reduce((sum, p) => sum + p.amount, 0))}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(filteredHamaliCash.reduce((sum, p) => sum + (p.totalBillAmount || 0), 0))}
-                        </TableCell>
-                        <TableCell colSpan={2}></TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="profit" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Product Profit Margins</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Purchase Price</TableHead>
-                    <TableHead className="text-right">Sale Price</TableHead>
-                    <TableHead className="text-right">Margin</TableHead>
-                    <TableHead className="text-right">Margin %</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {profitLoss?.productProfits.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No product data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    profitLoss?.productProfits.map((product) => (
-                      <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(product.purchasePrice)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(product.salePrice)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {formatCurrency(product.margin)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant={product.marginPercent >= 20 ? "default" : "secondary"}>
-                            {product.marginPercent.toFixed(1)}%
-                          </Badge>
+                          {formatCurrency(summary.totalSales)}
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="stock" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2">
-              <CardTitle>Stock Movement Report</CardTitle>
-              <Button variant="outline" size="sm" onClick={downloadStockReport} data-testid="button-download-stock">
-                <Download className="h-4 w-4 mr-1" />
-                Download CSV
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-4 flex-wrap">
-                <div className="text-center px-4 py-2 rounded-md bg-primary/10">
-                  <p className="text-xs text-muted-foreground">Stock In</p>
-                  <p className="text-xl font-bold font-mono" data-testid="text-stock-in">
-                    {stockInTotal.toFixed(2)}
-                  </p>
+                    </TableBody>
+                  </Table>
                 </div>
-                <div className="text-center px-4 py-2 rounded-md bg-destructive/10">
-                  <p className="text-xs text-muted-foreground">Stock Out</p>
-                  <p className="text-xl font-bold font-mono" data-testid="text-stock-out">
-                    {stockOutTotal.toFixed(2)}
-                  </p>
-                </div>
-                <div className="text-center px-4 py-2 rounded-md bg-muted">
-                  <p className="text-xs text-muted-foreground">Net Change</p>
-                  <p className={`text-xl font-bold font-mono ${stockInTotal - stockOutTotal >= 0 ? "text-primary" : "text-destructive"}`}>
-                    {(stockInTotal - stockOutTotal).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead>Reason</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMovements.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No stock movements for selected date range
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredMovements.slice(0, 50).map((movement) => (
-                      <TableRow key={movement.id} data-testid={`row-movement-${movement.id}`}>
-                        <TableCell>{movement.date}</TableCell>
-                        <TableCell className="font-medium">{getProductName(movement.productId)}</TableCell>
-                        <TableCell>
-                          <Badge variant={movement.type === "in" ? "default" : "destructive"}>
-                            {movement.type.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-mono">{movement.quantity}</TableCell>
-                        <TableCell className="text-muted-foreground">{movement.reason || "-"}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-              {filteredMovements.length > 50 && (
-                <p className="text-center text-sm text-muted-foreground">
-                  Showing first 50 movements. Download CSV for full report.
-                </p>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="lowstock" className="space-y-4">
+        <TabsContent value="daily" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-amber-500" />
-                Low Stock Alerts ({lowStockProducts.length})
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Daily Summary
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Current Stock</TableHead>
-                    <TableHead className="text-right">Reorder Level</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lowStockProducts.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                        All products are above reorder level
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    lowStockProducts.map((product) => (
-                      <TableRow key={product.id} data-testid={`row-lowstock-${product.id}`}>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="text-right font-mono">{product.currentStock}</TableCell>
-                        <TableCell className="text-right font-mono">{product.reorderLevel || 10}</TableCell>
+              {dailySummary.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No data for this period</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Sales Count</TableHead>
+                        <TableHead className="text-right">Total Weight</TableHead>
+                        <TableHead className="text-right">Hamali</TableHead>
+                        <TableHead className="text-right">Total Sales</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dailySummary.map((day) => (
+                        <TableRow key={day.date} data-testid={`row-daily-${day.date}`}>
+                          <TableCell className="font-medium">
+                            {new Date(day.date).toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="outline">{day.invoiceCount}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {day.totalWeight.toFixed(2)} KG
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {formatCurrency(day.hamaliTotal)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold">
+                            {formatCurrency(day.sales)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-muted/50 font-semibold">
+                        <TableCell>TOTAL</TableCell>
                         <TableCell className="text-right">
-                          {product.currentStock === 0 ? (
-                            <Badge variant="destructive">Out of Stock</Badge>
-                          ) : (
-                            <Badge className="bg-amber-500">Low Stock</Badge>
-                          )}
+                          {dailySummary.reduce((sum, d) => sum + d.invoiceCount, 0)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {dailySummary.reduce((sum, d) => sum + d.totalWeight, 0).toFixed(2)} KG
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(dailySummary.reduce((sum, d) => sum + d.hamaliTotal, 0))}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-primary">
+                          {formatCurrency(dailySummary.reduce((sum, d) => sum + d.sales, 0))}
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="charts" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Sales Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {chartData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-muted-foreground">
+                    No data to display
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={chartData}>
+                      <XAxis dataKey="date" fontSize={11} />
+                      <YAxis fontSize={11} tickFormatter={(v) => `₹${(v/1000).toFixed(0)}k`} />
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                        }}
+                      />
+                      <Bar dataKey="sales" fill={CHART_COLORS[0]} name="Sales" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="hamali" fill={CHART_COLORS[1]} name="Hamali" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Sales Breakdown</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {salesBreakdownData.length === 0 ? (
+                  <div className="h-64 flex items-center justify-center text-muted-foreground">
+                    No data to display
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={salesBreakdownData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={2}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {salesBreakdownData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                        }}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
