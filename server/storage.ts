@@ -522,6 +522,9 @@ export class DatabaseStorage implements IStorage {
       inventoryRecord = created;
     }
 
+    // Update product's currentStock (increase when loading onto vehicle)
+    await this.updateProductStock(productId, quantity, 'in');
+
     // Log the movement
     const today = new Date().toISOString().split("T")[0];
     await db.insert(vehicleInventoryMovements).values({
@@ -559,6 +562,9 @@ export class DatabaseStorage implements IStorage {
       .set({ quantity: newQuantity })
       .where(and(eq(vehicleInventory.vehicleId, vehicleId), eq(vehicleInventory.productId, productId)))
       .returning();
+
+    // Update product's currentStock (decrease when selling)
+    await this.updateProductStock(productId, quantity, 'out');
 
     // Log the movement
     const today = new Date().toISOString().split("T")[0];
