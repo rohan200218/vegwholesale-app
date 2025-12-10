@@ -83,6 +83,7 @@ export default function Payments() {
   const [completedPaymentData, setCompletedPaymentData] = useState<{
     customerName: string;
     amount: number;
+    grandTotal: number;
     paymentMethod: string;
     date: string;
     invoices: InvoiceWithItems[];
@@ -313,6 +314,7 @@ export default function Payments() {
       setCompletedPaymentData({
         customerName: getCustomerName(variables.customerId),
         amount: variables.amount,
+        grandTotal: grandTotalAllInvoices,
         paymentMethod: variables.paymentMethod,
         date: variables.date,
         invoices: customerInvoices,
@@ -592,9 +594,11 @@ export default function Payments() {
     
     await saveInvoiceChanges.mutateAsync();
     
+    const paymentAmount = customerPaymentAmount ? parseFloat(customerPaymentAmount) : grandTotalAllInvoices;
+    
     createCustomerPayment.mutate({
       customerId: selectedCustomer,
-      amount: grandTotalAllInvoices,
+      amount: paymentAmount,
       paymentMethod: customerPaymentMethod,
       date: new Date().toISOString().split("T")[0],
     });
@@ -1098,10 +1102,22 @@ export default function Payments() {
                               }, 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                             </span>
                           </div>
-                          <div className="flex justify-between border-t pt-2">
-                            <span className="font-medium">Amount Paid:</span>
-                            <span className="text-lg font-bold font-mono text-primary">
+                          <div className="flex justify-between text-sm border-t pt-2">
+                            <span className="text-muted-foreground">Grand Total:</span>
+                            <span className="font-medium font-mono">
+                              {completedPaymentData.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Amount Paid:</span>
+                            <span className="font-medium font-mono text-primary">
                               {completedPaymentData.amount.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-t pt-2">
+                            <span className="font-medium">Remaining Balance:</span>
+                            <span className={`text-lg font-bold font-mono ${(completedPaymentData.grandTotal - completedPaymentData.amount) > 0 ? 'text-destructive' : 'text-primary'}`}>
+                              {(completedPaymentData.grandTotal - completedPaymentData.amount).toLocaleString("en-IN", { style: "currency", currency: "INR" })}
                             </span>
                           </div>
                         </CardContent>
