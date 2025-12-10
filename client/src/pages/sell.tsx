@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Truck, Plus, Package, X, Minus, Weight, ShoppingBag, User, Calculator, Scale, Check } from "lucide-react";
+import { Truck, Plus, Package, X, Check, Minus, Weight, ShoppingBag } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Vehicle, Product, VehicleInventory, Vendor, Customer } from "@shared/schema";
 
@@ -42,7 +42,7 @@ interface SaleProduct {
   productName: string;
   unit: string;
   weight: number;
-  bags: number;
+  price: number;
   available: number;
 }
 
@@ -50,7 +50,7 @@ interface SaleDraft {
   products: SaleProduct[];
   customerName: string;
   selectedCustomerId: string;
-  hamaliRate: number;
+  hamaliCharge: number;
 }
 
 interface VehicleSalePaneProps {
@@ -76,16 +76,35 @@ function VehicleSalePane({
 }: VehicleSalePaneProps) {
   const { toast } = useToast();
 
-  const toggleSaleProduct = (productId: string) => {
+  const availableProducts = useMemo(() => {
+    return inventory
+      .filter(inv => inv.quantity > 0)
+      .map(inv => {
+        const product = products.find(p => p.id === inv.productId);
+        const draftProduct = draft.products.find(p => p.productId === inv.productId);
+        return {
+          ...inv,
+          product,
+          weight: draftProduct?.weight || 0,
+          price: draftProduct?.price || product?.salePrice || 0,
+        };
+      })
+      .filter(item => item.product);
+  }, [inventory, products, draft.products]);
+
+  const updateProductField = (productId: string, field: 'weight' | 'price', value: number) => {
+    const exists = draft.products.find(p => p.productId === productId);
     const product = products.find(p => p.id === productId);
     const inv = inventory.find(i => i.productId === productId);
+    
     if (!product || !inv) return;
 
-    const exists = draft.products.find(p => p.productId === productId);
     if (exists) {
       onUpdateDraft({
         ...draft,
-        products: draft.products.filter(p => p.productId !== productId),
+        products: draft.products.map(p =>
+          p.productId === productId ? { ...p, [field]: Math.max(0, value) } : p
+        ),
       });
     } else {
       onUpdateDraft({
@@ -94,30 +113,12 @@ function VehicleSalePane({
           productId,
           productName: product.name,
           unit: product.unit || "Units",
-          weight: 0,
-          bags: 0,
+          weight: field === 'weight' ? value : 0,
+          price: field === 'price' ? value : (product.salePrice || 0),
           available: inv.quantity,
         }],
       });
     }
-  };
-
-  const updateSaleProductWeight = (productId: string, weight: number) => {
-    onUpdateDraft({
-      ...draft,
-      products: draft.products.map(p =>
-        p.productId === productId ? { ...p, weight: Math.max(0, weight) } : p
-      ),
-    });
-  };
-
-  const updateSaleProductBags = (productId: string, bags: number) => {
-    onUpdateDraft({
-      ...draft,
-      products: draft.products.map(p =>
-        p.productId === productId ? { ...p, bags: Math.max(0, Math.floor(bags)) } : p
-      ),
-    });
   };
 
   const handleCustomerChange = (value: string) => {
@@ -133,16 +134,12 @@ function VehicleSalePane({
     }
   };
 
-  const saleTotalBags = useMemo(() => {
-    return draft.products.reduce((sum, p) => sum + p.bags, 0);
-  }, [draft.products]);
-
-  const totalHamaliCharge = useMemo(() => {
-    return saleTotalBags * draft.hamaliRate;
-  }, [saleTotalBags, draft.hamaliRate]);
-
   const saleTotalWeight = useMemo(() => {
     return draft.products.reduce((sum, p) => sum + p.weight, 0);
+  }, [draft.products]);
+
+  const saleSubtotal = useMemo(() => {
+    return draft.products.reduce((sum, p) => sum + (p.weight * p.price), 0);
   }, [draft.products]);
 
   const createSaleMutation = useMutation({
@@ -168,23 +165,19 @@ function VehicleSalePane({
         throw new Error("Please select or enter a customer name");
       }
 
-      const subtotal = draft.products.reduce((sum, p) => {
-        const product = products.find(pr => pr.id === p.productId);
-        return sum + (p.weight * (product?.salePrice || 0));
-      }, 0);
+      const subtotal = draft.products.reduce((sum, p) => sum + (p.weight * p.price), 0);
 
       const today = new Date().toISOString().split('T')[0];
       const invoiceNumber = `INV-${Date.now()}`;
 
-      const items = draft.products.map(saleProduct => {
-        const product = products.find(p => p.id === saleProduct.productId);
-        return {
+      const items = draft.products
+        .filter(p => p.weight > 0)
+        .map(saleProduct => ({
           productId: saleProduct.productId,
           quantity: saleProduct.weight,
-          unitPrice: product?.salePrice || 0,
-          total: saleProduct.weight * (product?.salePrice || 0),
-        };
-      });
+          unitPrice: saleProduct.price,
+          total: saleProduct.weight * saleProduct.price,
+        }));
 
       const invoiceRes = await apiRequest("POST", "/api/invoices", {
         invoiceNumber,
@@ -192,12 +185,12 @@ function VehicleSalePane({
         vehicleId: vehicle.id,
         date: today,
         subtotal,
-        includeHamaliCharge: true,
-        hamaliRatePerKg: draft.hamaliRate,
-        hamaliChargeAmount: totalHamaliCharge,
+        includeHamaliCharge: draft.hamaliCharge > 0,
+        hamaliRatePerKg: 0,
+        hamaliChargeAmount: draft.hamaliCharge,
         hamaliPaidByCash: false,
         totalKgWeight: saleTotalWeight,
-        grandTotal: subtotal + totalHamaliCharge,
+        grandTotal: subtotal + draft.hamaliCharge,
         items,
       });
 
@@ -246,256 +239,128 @@ function VehicleSalePane({
     },
   });
 
+  const hasProductsWithWeight = draft.products.some(p => p.weight > 0);
+  const grandTotal = saleSubtotal + draft.hamaliCharge;
+
   return (
-    <Card className="border-primary/50" data-testid={`section-customer-sale-${vehicle.id}`}>
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Scale className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle>Customer Sale</CardTitle>
-              <p className="text-sm text-muted-foreground">Selling from: {vehicle.number}</p>
-            </div>
+    <Card className="border-primary/30 w-72 flex-shrink-0" data-testid={`section-customer-sale-${vehicle.id}`}>
+      <CardHeader className="p-3 pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Truck className="h-4 w-4 text-primary flex-shrink-0" />
+            <span className="font-semibold text-sm truncate" data-testid={`text-sale-vehicle-number-${vehicle.id}`}>{vehicle.number}</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} data-testid={`button-close-sale-${vehicle.id}`}>
-            <X className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} data-testid={`button-close-sale-${vehicle.id}`}>
+            <X className="h-3 w-3" />
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="p-3 bg-muted/50 rounded-md">
-          <div className="flex items-center gap-2">
-            <Truck className="h-4 w-4 text-muted-foreground" />
-            <span className="font-medium" data-testid={`text-sale-vehicle-number-${vehicle.id}`}>{vehicle.number}</span>
-            <Badge variant="outline">{vehicle.type}</Badge>
-          </div>
-        </div>
+      <CardContent className="p-3 pt-0 space-y-3">
+        <Select value={draft.selectedCustomerId || "new"} onValueChange={handleCustomerChange}>
+          <SelectTrigger className="h-8 text-xs" data-testid={`select-customer-${vehicle.id}`}>
+            <SelectValue placeholder="Select customer" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="new">New Customer</SelectItem>
+            {customers.map((customer) => (
+              <SelectItem key={customer.id} value={customer.id}>
+                {customer.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        {(!draft.selectedCustomerId || draft.selectedCustomerId === "") && (
+          <Input
+            placeholder="Customer name"
+            className="h-8 text-xs"
+            value={draft.customerName}
+            onChange={(e) => onUpdateDraft({ ...draft, customerName: e.target.value })}
+            data-testid={`input-customer-name-${vehicle.id}`}
+          />
+        )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Customer
-            </label>
-            <Select value={draft.selectedCustomerId || "new"} onValueChange={handleCustomerChange}>
-              <SelectTrigger data-testid={`select-customer-${vehicle.id}`}>
-                <SelectValue placeholder="Select or enter new customer" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="new">Enter New Customer</SelectItem>
-                {customers.map((customer) => (
-                  <SelectItem key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-1">
+          <div className="grid grid-cols-12 gap-1 text-[10px] text-muted-foreground font-medium px-1">
+            <div className="col-span-4">Product</div>
+            <div className="col-span-3 text-center">Qty</div>
+            <div className="col-span-3 text-center">Price</div>
+            <div className="col-span-2 text-right">Total</div>
           </div>
-          {(!draft.selectedCustomerId || draft.selectedCustomerId === "") && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">New Customer Name</label>
-              <Input
-                placeholder="Enter customer name"
-                value={draft.customerName}
-                onChange={(e) => onUpdateDraft({ ...draft, customerName: e.target.value })}
-                data-testid={`input-customer-name-${vehicle.id}`}
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Select Products
-            </label>
-            {draft.products.length > 0 && (
-              <Badge variant="secondary">{draft.products.length} selected</Badge>
+          <div className="space-y-1 max-h-32 overflow-y-auto">
+            {availableProducts.map((item) => {
+              const draftProduct = draft.products.find(p => p.productId === item.productId);
+              const qty = draftProduct?.weight || 0;
+              const price = draftProduct?.price || item.product?.salePrice || 0;
+              const lineTotal = qty * price;
+              
+              return (
+                <div key={item.productId} className="grid grid-cols-12 gap-1 items-center">
+                  <div className="col-span-4 text-xs truncate" title={item.product?.name}>
+                    {item.product?.name}
+                  </div>
+                  <div className="col-span-3">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      className="h-6 text-xs text-center px-1"
+                      value={qty || ""}
+                      placeholder="0"
+                      onChange={(e) => updateProductField(item.productId, 'weight', parseFloat(e.target.value) || 0)}
+                      data-testid={`input-qty-${vehicle.id}-${item.productId}`}
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <Input
+                      type="number"
+                      min="0"
+                      className="h-6 text-xs text-center px-1"
+                      value={price || ""}
+                      placeholder="0"
+                      onChange={(e) => updateProductField(item.productId, 'price', parseFloat(e.target.value) || 0)}
+                      data-testid={`input-price-${vehicle.id}-${item.productId}`}
+                    />
+                  </div>
+                  <div className="col-span-2 text-xs text-right font-medium">
+                    {lineTotal > 0 ? `₹${lineTotal.toFixed(0)}` : "-"}
+                  </div>
+                </div>
+              );
+            })}
+            {availableProducts.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-2">No products</p>
             )}
           </div>
-          
-          <ScrollArea className="h-48 border rounded-md p-3">
-            <div className="space-y-2">
-              {inventory.filter(inv => inv.quantity > 0).map((inv) => {
-                const product = products.find(p => p.id === inv.productId);
-                if (!product) return null;
-                
-                const isSelected = draft.products.some(p => p.productId === inv.productId);
-                const saleProduct = draft.products.find(p => p.productId === inv.productId);
-
-                return (
-                  <div 
-                    key={inv.productId}
-                    className={`p-3 border rounded-md transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleSaleProduct(inv.productId)}
-                        data-testid={`checkbox-sale-product-${vehicle.id}-${inv.productId}`}
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{product.name}</span>
-                            <Badge variant="outline" className="text-xs">{product.unit}</Badge>
-                          </div>
-                          <span className="text-sm text-muted-foreground">Available: {inv.quantity}</span>
-                        </div>
-
-                        {isSelected && (
-                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-sm text-muted-foreground mb-1 block flex items-center gap-1">
-                                <Weight className="h-3 w-3" />
-                                Weight ({product.unit})
-                              </label>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="outline"
-                                  onClick={() => updateSaleProductWeight(inv.productId, (saleProduct?.weight || 0) - 1)}
-                                  className="h-8 w-8"
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max={inv.quantity}
-                                  step={product.unit === "KG" ? "0.1" : "1"}
-                                  value={saleProduct?.weight || 0}
-                                  onChange={(e) => updateSaleProductWeight(inv.productId, parseFloat(e.target.value) || 0)}
-                                  className="text-center h-8 w-20"
-                                  data-testid={`input-sale-weight-${vehicle.id}-${inv.productId}`}
-                                />
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="outline"
-                                  onClick={() => updateSaleProductWeight(inv.productId, (saleProduct?.weight || 0) + 1)}
-                                  className="h-8 w-8"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="text-sm text-muted-foreground mb-1 block flex items-center gap-1">
-                                <ShoppingBag className="h-3 w-3" />
-                                Bags
-                              </label>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="outline"
-                                  onClick={() => updateSaleProductBags(inv.productId, (saleProduct?.bags || 0) - 1)}
-                                  className="h-8 w-8"
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={saleProduct?.bags || 0}
-                                  onChange={(e) => updateSaleProductBags(inv.productId, parseInt(e.target.value) || 0)}
-                                  className="text-center h-8 w-20"
-                                  data-testid={`input-sale-bags-${vehicle.id}-${inv.productId}`}
-                                />
-                                <Button
-                                  type="button"
-                                  size="icon"
-                                  variant="outline"
-                                  onClick={() => updateSaleProductBags(inv.productId, (saleProduct?.bags || 0) + 1)}
-                                  className="h-8 w-8"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {inventory.filter(inv => inv.quantity > 0).length === 0 && (
-                <p className="text-center text-muted-foreground py-4">No products available in this vehicle</p>
-              )}
-            </div>
-          </ScrollArea>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/50 rounded-md">
-          <div className="space-y-2">
-            <label className="text-sm font-medium flex items-center gap-2">
-              <Calculator className="h-4 w-4" />
-              Hamali Rate (per bag)
-            </label>
-            <Input
-              type="number"
-              min="0"
-              value={draft.hamaliRate}
-              onChange={(e) => onUpdateDraft({ ...draft, hamaliRate: parseFloat(e.target.value) || 0 })}
-              data-testid={`input-hamali-rate-${vehicle.id}`}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Total Bags</label>
-            <div className="h-9 px-3 flex items-center bg-background border rounded-md">
-              <span className="font-medium" data-testid={`text-sale-total-bags-${vehicle.id}`}>{saleTotalBags}</span>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Total Hamali Charge</label>
-            <div className="h-9 px-3 flex items-center bg-background border rounded-md">
-              <span className="font-semibold text-primary" data-testid={`text-total-hamali-${vehicle.id}`}>
-                ₹{totalHamaliCharge.toFixed(2)}
-              </span>
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Hamali:</span>
+          <Input
+            type="number"
+            min="0"
+            className="h-6 text-xs w-20 px-2"
+            value={draft.hamaliCharge || ""}
+            placeholder="0"
+            onChange={(e) => onUpdateDraft({ ...draft, hamaliCharge: parseFloat(e.target.value) || 0 })}
+            data-testid={`input-hamali-${vehicle.id}`}
+          />
         </div>
 
-        <div className="p-4 bg-primary/5 border border-primary/20 rounded-md">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Weight</p>
-              <p className="text-lg font-semibold" data-testid={`text-sale-total-weight-${vehicle.id}`}>{saleTotalWeight.toFixed(1)} KG</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Bags</p>
-              <p className="text-lg font-semibold">{saleTotalBags}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Hamali</p>
-              <p className="text-lg font-semibold">₹{totalHamaliCharge.toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Products</p>
-              <p className="text-lg font-semibold">{draft.products.length}</p>
-            </div>
-          </div>
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="text-xs text-muted-foreground">Total:</span>
+          <span className="font-bold text-sm" data-testid={`text-grand-total-${vehicle.id}`}>₹{grandTotal.toFixed(0)}</span>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} data-testid={`button-cancel-sale-${vehicle.id}`}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={() => createSaleMutation.mutate()}
-            disabled={createSaleMutation.isPending || draft.products.length === 0 || (!draft.selectedCustomerId && !draft.customerName.trim())}
-            data-testid={`button-create-sale-${vehicle.id}`}
-          >
-            {createSaleMutation.isPending ? "Creating..." : "Create Sale"}
-          </Button>
-        </div>
+        <Button 
+          size="sm"
+          className="w-full h-8"
+          onClick={() => createSaleMutation.mutate()}
+          disabled={createSaleMutation.isPending || !hasProductsWithWeight || (!draft.selectedCustomerId && !draft.customerName.trim())}
+          data-testid={`button-create-sale-${vehicle.id}`}
+        >
+          {createSaleMutation.isPending ? "..." : "Create Sale"}
+        </Button>
       </CardContent>
     </Card>
   );
@@ -717,7 +582,7 @@ export default function Sell() {
           products: [],
           customerName: "",
           selectedCustomerId: "",
-          hamaliRate: 12,
+          hamaliCharge: 0,
         },
       }));
     }
@@ -1143,7 +1008,7 @@ export default function Sell() {
             </Button>
           </div>
           
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="flex gap-3 overflow-x-auto pb-2">
             {selectedVehiclesArray.map((vehicle) => (
               <VehicleSalePane
                 key={vehicle.id}
@@ -1151,7 +1016,7 @@ export default function Sell() {
                 inventory={vehicleInventories[vehicle.id] || []}
                 products={products}
                 customers={customers}
-                draft={saleDrafts[vehicle.id] || { products: [], customerName: "", selectedCustomerId: "", hamaliRate: 12 }}
+                draft={saleDrafts[vehicle.id] || { products: [], customerName: "", selectedCustomerId: "", hamaliCharge: 0 }}
                 onUpdateDraft={(draft) => handleUpdateDraft(vehicle.id, draft)}
                 onClose={() => handleCloseSale(vehicle.id)}
                 onSaleComplete={() => handleSaleComplete(vehicle.id)}
