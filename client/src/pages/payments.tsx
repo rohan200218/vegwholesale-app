@@ -981,7 +981,7 @@ export default function Payments() {
                   Record Payment
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl h-[85vh] overflow-hidden flex flex-col">
+              <DialogContent className="max-w-4xl max-h-[85vh] overflow-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {step === 'select' && 'Select Customer'}
@@ -1024,7 +1024,7 @@ export default function Payments() {
                 )}
 
                 {step === 'review' && (
-                  <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+                  <div className="space-y-4">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
                         <Button variant="ghost" size="sm" onClick={() => setStep('select')}>
@@ -1048,7 +1048,7 @@ export default function Payments() {
                     </div>
 
                     {customerSummary && customerSummary.totalPayments > 0 ? (
-                      <div className="flex-1 overflow-auto border rounded-md">
+                      <div className="border rounded-md">
                         <div className="p-4 space-y-4">
                           <div className="text-sm text-muted-foreground mb-2">
                             Products taken by customer (read-only - already invoiced)
@@ -1098,7 +1098,7 @@ export default function Payments() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex-1 overflow-auto border rounded-md">
+                      <div className="border rounded-md">
                         <div className="p-4 space-y-6">
                           {customerInvoices.length === 0 ? (
                             <div className="text-center text-muted-foreground py-8">
