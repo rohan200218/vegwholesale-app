@@ -416,6 +416,28 @@ export async function registerRoutes(
     }
   });
 
+  // All vehicle inventory movements (for Stock page)
+  app.get("/api/vehicle-inventory-movements", async (req, res) => {
+    try {
+      const movements = await storage.getAllVehicleInventoryMovements();
+      res.json(movements);
+    } catch (error) {
+      console.error("Error getting all inventory movements:", error);
+      res.status(500).json({ error: "Failed to get inventory movements" });
+    }
+  });
+
+  // All vehicle inventories (for Stock page)
+  app.get("/api/all-vehicle-inventories", async (req, res) => {
+    try {
+      const inventories = await storage.getAllVehicleInventories();
+      res.json(inventories);
+    } catch (error) {
+      console.error("Error getting all vehicle inventories:", error);
+      res.status(500).json({ error: "Failed to get vehicle inventories" });
+    }
+  });
+
   const loadInventorySchema = z.object({
     productId: z.string(),
     quantity: z.number().positive(),

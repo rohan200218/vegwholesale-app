@@ -112,9 +112,11 @@ export interface IStorage {
 
   // Vehicle Inventory
   getVehicleInventory(vehicleId: string): Promise<VehicleInventory[]>;
+  getAllVehicleInventories(): Promise<VehicleInventory[]>;
   loadVehicleInventory(vehicleId: string, productId: string, quantity: number, purchaseId?: string): Promise<VehicleInventory>;
   deductVehicleInventory(vehicleId: string, productId: string, quantity: number, invoiceId?: string): Promise<VehicleInventory | undefined>;
   getVehicleInventoryMovements(vehicleId: string): Promise<VehicleInventoryMovement[]>;
+  getAllVehicleInventoryMovements(): Promise<VehicleInventoryMovement[]>;
 
   // Vendor Returns
   getVendorReturns(vendorId?: string): Promise<VendorReturn[]>;
@@ -497,6 +499,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(vehicleInventory).where(eq(vehicleInventory.vehicleId, vehicleId));
   }
 
+  async getAllVehicleInventories(): Promise<VehicleInventory[]> {
+    return await db.select().from(vehicleInventory);
+  }
+
   async getVehicleProductInventory(vehicleId: string, productId: string): Promise<VehicleInventory | undefined> {
     // Get total quantity for this vehicle+product combination (aggregate all matching rows)
     const records = await db.select().from(vehicleInventory)
@@ -591,6 +597,10 @@ export class DatabaseStorage implements IStorage {
 
   async getVehicleInventoryMovements(vehicleId: string): Promise<VehicleInventoryMovement[]> {
     return await db.select().from(vehicleInventoryMovements).where(eq(vehicleInventoryMovements.vehicleId, vehicleId));
+  }
+
+  async getAllVehicleInventoryMovements(): Promise<VehicleInventoryMovement[]> {
+    return await db.select().from(vehicleInventoryMovements);
   }
 
   // Vendor Returns Methods
