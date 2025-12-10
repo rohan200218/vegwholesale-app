@@ -1048,7 +1048,7 @@ export default function Payments() {
                     </div>
 
                     {customerSummary && customerSummary.totalPayments > 0 ? (
-                      <ScrollArea className="flex-1 border rounded-md">
+                      <div className="flex-1 overflow-auto border rounded-md">
                         <div className="p-4 space-y-4">
                           <div className="text-sm text-muted-foreground mb-2">
                             Products taken by customer (read-only - already invoiced)
@@ -1096,9 +1096,9 @@ export default function Payments() {
                             </Card>
                           ))}
                         </div>
-                      </ScrollArea>
+                      </div>
                     ) : (
-                      <ScrollArea className="flex-1 border rounded-md">
+                      <div className="flex-1 overflow-auto border rounded-md">
                         <div className="p-4 space-y-6">
                           {customerInvoices.length === 0 ? (
                             <div className="text-center text-muted-foreground py-8">
@@ -1165,7 +1165,7 @@ export default function Payments() {
                             })
                           )}
                         </div>
-                      </ScrollArea>
+                      </div>
                     )}
 
                     <div className="pt-4 border-t space-y-3">
