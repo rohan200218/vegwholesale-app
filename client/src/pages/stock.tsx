@@ -1,9 +1,6 @@
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -13,172 +10,162 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import {
-  Search,
-  Warehouse,
-  Plus,
-  Minus,
-  AlertTriangle,
+  Truck,
+  Package,
+  Scale,
+  ShoppingBag,
   TrendingUp,
   TrendingDown,
-  Package,
+  ArrowRight,
 } from "lucide-react";
-import type { Product, StockMovement } from "@shared/schema";
+import type { Product, Vehicle, Invoice } from "@shared/schema";
 
-type AdjustmentType = "add" | "reduce";
+type VehicleInventory = {
+  vehicleId: string;
+  productId: string;
+  quantity: number;
+};
+
+type VehicleInventoryMovement = {
+  id: string;
+  vehicleId: string;
+  productId: string;
+  type: string;
+  quantity: number;
+  date: string;
+  notes?: string;
+};
+
+function formatCurrency(amount: number): string {
+  return amount.toLocaleString("en-IN", { style: "currency", currency: "INR" });
+}
 
 export default function Stock() {
-  const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [adjustmentDialog, setAdjustmentDialog] = useState<{
-    product: Product;
-    type: AdjustmentType;
-  } | null>(null);
-  const [adjustmentQuantity, setAdjustmentQuantity] = useState("");
-  const [adjustmentReason, setAdjustmentReason] = useState("");
-
-  const { data: products = [], isLoading } = useQuery<Product[]>({
+  const { data: products = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
   });
 
-  const { data: movements = [] } = useQuery<StockMovement[]>({
-    queryKey: ["/api/stock-movements"],
+  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<Vehicle[]>({
+    queryKey: ["/api/vehicles"],
   });
 
-  const adjustStockMutation = useMutation({
-    mutationFn: async ({
-      productId,
-      type,
-      quantity,
-      reason,
-    }: {
+  const { data: allInventories = [] } = useQuery<VehicleInventory[]>({
+    queryKey: ["/api/all-vehicle-inventories"],
+  });
+
+  const { data: movements = [] } = useQuery<VehicleInventoryMovement[]>({
+    queryKey: ["/api/vehicle-inventory-movements"],
+  });
+
+  const { data: invoices = [] } = useQuery<Invoice[]>({
+    queryKey: ["/api/invoices"],
+  });
+
+  const getProductName = (id: string) => products.find((p) => p.id === id)?.name || "Unknown";
+  const getProductUnit = (id: string) => products.find((p) => p.id === id)?.unit || "KG";
+  const getVehicleNumber = (id: string) => vehicles.find((v) => v.id === id)?.number || "Unknown";
+
+  const productSummary = useMemo(() => {
+    const summary = new Map<string, {
       productId: string;
-      type: AdjustmentType;
-      quantity: number;
-      reason: string;
-    }) => {
-      return apiRequest("POST", "/api/stock-movements", {
-        productId,
-        type: type === "add" ? "in" : "out",
-        quantity,
-        reason,
-        date: new Date().toISOString().split("T")[0],
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/stock-movements"] });
-      setAdjustmentDialog(null);
-      setAdjustmentQuantity("");
-      setAdjustmentReason("");
-      toast({ title: "Stock adjusted successfully" });
-    },
-    onError: () => {
-      toast({ title: "Failed to adjust stock", variant: "destructive" });
-    },
-  });
+      loaded: number;
+      sold: number;
+      remaining: number;
+    }>();
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const totalStockValue = products.reduce(
-    (acc, p) => acc + p.currentStock * p.purchasePrice,
-    0
-  );
-
-  const lowStockCount = products.filter(
-    (p) => p.currentStock <= (p.reorderLevel || 10)
-  ).length;
-
-  const handleAdjustment = () => {
-    if (!adjustmentDialog || !adjustmentQuantity) return;
-
-    const quantity = parseFloat(adjustmentQuantity);
-    if (isNaN(quantity) || quantity <= 0) {
-      toast({ title: "Please enter a valid quantity", variant: "destructive" });
-      return;
-    }
-
-    if (
-      adjustmentDialog.type === "reduce" &&
-      quantity > adjustmentDialog.product.currentStock
-    ) {
-      toast({
-        title: "Cannot reduce more than current stock",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    adjustStockMutation.mutate({
-      productId: adjustmentDialog.product.id,
-      type: adjustmentDialog.type,
-      quantity,
-      reason: adjustmentReason || `Manual ${adjustmentDialog.type}`,
+    allInventories.forEach((inv) => {
+      const existing = summary.get(inv.productId) || {
+        productId: inv.productId,
+        loaded: 0,
+        sold: 0,
+        remaining: 0,
+      };
+      existing.remaining += inv.quantity;
+      summary.set(inv.productId, existing);
     });
-  };
 
-  const recentMovements = [...movements]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 10);
+    movements.forEach((mov) => {
+      const existing = summary.get(mov.productId) || {
+        productId: mov.productId,
+        loaded: 0,
+        sold: 0,
+        remaining: 0,
+      };
+      if (mov.type === "load") {
+        existing.loaded += mov.quantity;
+      } else if (mov.type === "sale") {
+        existing.sold += mov.quantity;
+      }
+      summary.set(mov.productId, existing);
+    });
 
-  // Calculate entry stock (total stock received) per product
-  const getEntryStock = (productId: string) => {
-    return movements
-      .filter((m) => m.productId === productId && m.type === "in")
-      .reduce((sum, m) => sum + m.quantity, 0);
-  };
+    return Array.from(summary.values()).filter(s => s.loaded > 0 || s.remaining > 0);
+  }, [allInventories, movements]);
 
-  // Calculate sold/out stock per product (excluding returns)
-  const getSoldStock = (productId: string) => {
-    return movements
-      .filter((m) => m.productId === productId && m.type === "out" && !m.reason?.startsWith("Vendor return"))
-      .reduce((sum, m) => sum + m.quantity, 0);
-  };
+  const vehicleSummary = useMemo(() => {
+    const summary = new Map<string, {
+      vehicleId: string;
+      productCount: number;
+      totalQuantity: number;
+      totalLoaded: number;
+      totalSold: number;
+    }>();
 
-  // Calculate returned stock per product
-  const getReturnedStock = (productId: string) => {
-    return movements
-      .filter((m) => m.productId === productId && m.type === "out" && m.reason?.startsWith("Vendor return"))
-      .reduce((sum, m) => sum + m.quantity, 0);
-  };
+    allInventories.forEach((inv) => {
+      const existing = summary.get(inv.vehicleId) || {
+        vehicleId: inv.vehicleId,
+        productCount: 0,
+        totalQuantity: 0,
+        totalLoaded: 0,
+        totalSold: 0,
+      };
+      if (inv.quantity > 0) {
+        existing.productCount += 1;
+        existing.totalQuantity += inv.quantity;
+      }
+      summary.set(inv.vehicleId, existing);
+    });
 
-  // Get first entry date for a product
-  const getFirstEntryDate = (productId: string) => {
-    const inMovements = movements
-      .filter((m) => m.productId === productId && m.type === "in")
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    return inMovements.length > 0 ? inMovements[0].date : null;
-  };
+    movements.forEach((mov) => {
+      const existing = summary.get(mov.vehicleId);
+      if (existing) {
+        if (mov.type === "load") {
+          existing.totalLoaded += mov.quantity;
+        } else if (mov.type === "sale") {
+          existing.totalSold += mov.quantity;
+        }
+      }
+    });
 
-  // Get last entry date for a product
-  const getLastEntryDate = (productId: string) => {
-    const inMovements = movements
-      .filter((m) => m.productId === productId && m.type === "in")
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return inMovements.length > 0 ? inMovements[0].date : null;
-  };
+    return Array.from(summary.values()).filter(v => v.totalQuantity > 0 || v.totalLoaded > 0);
+  }, [allInventories, movements]);
 
-  if (isLoading) {
+  const recentMovements = useMemo(() => {
+    return [...movements]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 15);
+  }, [movements]);
+
+  const totals = useMemo(() => {
+    const totalLoaded = productSummary.reduce((sum, p) => sum + p.loaded, 0);
+    const totalSold = productSummary.reduce((sum, p) => sum + p.sold, 0);
+    const totalRemaining = productSummary.reduce((sum, p) => sum + p.remaining, 0);
+    const todaysSales = invoices
+      .filter(inv => inv.date === new Date().toISOString().split("T")[0])
+      .reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+
+    return { totalLoaded, totalSold, totalRemaining, todaysSales };
+  }, [productSummary, invoices]);
+
+  if (productsLoading || vehiclesLoading) {
     return (
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <Skeleton className="h-8 w-24" />
-              </CardContent>
-            </Card>
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32" />
           ))}
         </div>
       </div>
@@ -189,56 +176,71 @@ export default function Stock() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold" data-testid="text-page-title">Stock Management</h1>
+          <h1 className="text-2xl font-semibold" data-testid="text-page-title">Stock Tracking</h1>
           <p className="text-sm text-muted-foreground">
-            Monitor and manage inventory levels
+            Track products loaded onto vehicles and sales
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Products
+              Total Loaded
+            </CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono" data-testid="text-total-loaded">
+              {totals.totalLoaded.toFixed(2)} KG
+            </div>
+            <p className="text-xs text-muted-foreground">Products loaded to vehicles</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Sold
+            </CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono" data-testid="text-total-sold">
+              {totals.totalSold.toFixed(2)} KG
+            </div>
+            <p className="text-xs text-muted-foreground">Products sold from vehicles</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Remaining Stock
             </CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold" data-testid="text-total-products">
-              {products.length}
+            <div className="text-2xl font-bold font-mono" data-testid="text-total-remaining">
+              {totals.totalRemaining.toFixed(2)} KG
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Items in catalog</p>
+            <p className="text-xs text-muted-foreground">On vehicles, ready to sell</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Stock Value
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">
+              Today's Sales
             </CardTitle>
-            <Warehouse className="h-4 w-4 text-muted-foreground" />
+            <Scale className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-semibold font-mono" data-testid="text-stock-value">
-              ₹{totalStockValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            <div className="text-2xl font-bold font-mono text-primary" data-testid="text-todays-sales">
+              {formatCurrency(totals.todaysSales)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">At purchase price</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Low Stock Items
-            </CardTitle>
-            <AlertTriangle className="h-4 w-4 text-chart-2" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold" data-testid="text-low-stock-count">
-              {lowStockCount}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Need reordering</p>
+            <p className="text-xs text-muted-foreground">From all vehicles</p>
           </CardContent>
         </Card>
       </div>
@@ -246,26 +248,17 @@ export default function Stock() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <CardTitle className="text-lg font-semibold">Inventory</CardTitle>
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                  data-testid="input-search-stock"
-                />
-              </div>
-            </div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Product Summary
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Warehouse className="h-12 w-12 mb-4" />
-                <p className="text-lg font-medium">No products found</p>
-                <p className="text-sm">Add products to manage stock</p>
+            {productSummary.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No products loaded yet</p>
+                <p className="text-sm">Go to Sell tab to add vehicles with products</p>
               </div>
             ) : (
               <Table>
@@ -273,106 +266,43 @@ export default function Stock() {
                   <TableRow>
                     <TableHead>Product</TableHead>
                     <TableHead>Unit</TableHead>
-                    <TableHead>Entry Date</TableHead>
-                    <TableHead className="text-right">Entry Stock</TableHead>
+                    <TableHead className="text-right">Loaded</TableHead>
                     <TableHead className="text-right">Sold</TableHead>
-                    <TableHead className="text-right">Returned</TableHead>
-                    <TableHead className="text-right">Available</TableHead>
-                    <TableHead className="text-right">Value</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right">Remaining</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredProducts.map((product) => {
-                    const isLowStock =
-                      product.currentStock <= (product.reorderLevel || 10);
-                    const stockValue = product.currentStock * product.purchasePrice;
-                    const entryStock = getEntryStock(product.id);
-                    const soldStock = getSoldStock(product.id);
-                    const returnedStock = getReturnedStock(product.id);
-                    const firstEntryDate = getFirstEntryDate(product.id);
-                    const lastEntryDate = getLastEntryDate(product.id);
-
-                    return (
-                      <TableRow key={product.id} data-testid={`row-stock-${product.id}`}>
-                        <TableCell className="font-medium">
-                          {product.name}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="text-xs">
-                            {product.unit}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {firstEntryDate ? (
-                            <div className="text-sm">
-                              <div>{firstEntryDate}</div>
-                              {lastEntryDate && lastEntryDate !== firstEntryDate && (
-                                <div className="text-xs text-muted-foreground">
-                                  Last: {lastEntryDate}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">
-                          {entryStock.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">
-                          {soldStock.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
-                          {returnedStock > 0 ? returnedStock.toFixed(2) : "-"}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-semibold">
-                          {product.currentStock.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          ₹{stockValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell>
-                          {isLowStock ? (
-                            <div className="flex items-center gap-1 text-chart-2">
-                              <AlertTriangle className="h-3 w-3" />
-                              <span className="text-xs">Low</span>
-                            </div>
-                          ) : (
-                            <Badge variant="outline" className="text-xs">
-                              OK
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() =>
-                                setAdjustmentDialog({ product, type: "add" })
-                              }
-                              data-testid={`button-add-stock-${product.id}`}
-                            >
-                              <Plus className="h-4 w-4 text-primary" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() =>
-                                setAdjustmentDialog({ product, type: "reduce" })
-                              }
-                              disabled={product.currentStock <= 0}
-                              data-testid={`button-reduce-stock-${product.id}`}
-                            >
-                              <Minus className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {productSummary.map((item) => (
+                    <TableRow key={item.productId} data-testid={`row-product-${item.productId}`}>
+                      <TableCell className="font-medium">
+                        {getProductName(item.productId)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{getProductUnit(item.productId)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {item.loaded.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">
+                        {item.sold.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-semibold">
+                        {item.remaining.toFixed(2)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-muted/50 font-semibold">
+                    <TableCell colSpan={2}>TOTAL</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {totals.totalLoaded.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {totals.totalSold.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-primary">
+                      {totals.totalRemaining.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             )}
@@ -381,137 +311,95 @@ export default function Stock() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">Recent Movements</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Vehicle Stock
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {recentMovements.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                <TrendingUp className="h-8 w-8 mb-2" />
-                <p className="text-sm">No movements yet</p>
+            {vehicleSummary.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Truck className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No vehicles with stock</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {recentMovements.map((movement) => {
-                  const product = products.find((p) => p.id === movement.productId);
-                  return (
-                    <div
-                      key={movement.id}
-                      className="flex items-center justify-between p-3 rounded-md bg-muted/50"
-                      data-testid={`movement-${movement.id}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        {movement.type === "in" ? (
-                          <TrendingUp className="h-4 w-4 text-primary" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-destructive" />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium">
-                            {product?.name || "Unknown"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {movement.reason}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p
-                          className={`text-sm font-mono ${
-                            movement.type === "in"
-                              ? "text-primary"
-                              : "text-destructive"
-                          }`}
-                        >
-                          {movement.type === "in" ? "+" : "-"}
-                          {movement.quantity}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {movement.date}
-                        </p>
+                {vehicleSummary.map((v) => (
+                  <div
+                    key={v.vehicleId}
+                    className="flex items-center justify-between p-3 rounded-md bg-muted/50"
+                    data-testid={`vehicle-stock-${v.vehicleId}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-sm">{getVehicleNumber(v.vehicleId)}</p>
+                        <p className="text-xs text-muted-foreground">{v.productCount} products</p>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="text-right">
+                      <p className="font-mono font-semibold">{v.totalQuantity.toFixed(2)} KG</p>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="text-primary">{v.totalLoaded.toFixed(0)}</span>
+                        <ArrowRight className="h-3 w-3" />
+                        <span className="text-destructive">{v.totalSold.toFixed(0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Dialog
-        open={!!adjustmentDialog}
-        onOpenChange={() => {
-          setAdjustmentDialog(null);
-          setAdjustmentQuantity("");
-          setAdjustmentReason("");
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {adjustmentDialog?.type === "add" ? "Add Stock" : "Reduce Stock"} -{" "}
-              {adjustmentDialog?.product.name}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="p-4 rounded-md bg-muted/50">
-              <p className="text-sm text-muted-foreground">Current Stock</p>
-              <p className="text-2xl font-semibold font-mono">
-                {adjustmentDialog?.product.currentStock.toFixed(2)}{" "}
-                {adjustmentDialog?.product.unit}
-              </p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <TrendingDown className="h-5 w-5" />
+            Recent Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentMovements.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No activity yet</p>
+              <p className="text-sm">Load products onto vehicles and create sales to see activity</p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="0.01"
-                placeholder="Enter quantity"
-                value={adjustmentQuantity}
-                onChange={(e) => setAdjustmentQuantity(e.target.value)}
-                data-testid="input-adjustment-quantity"
-              />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {recentMovements.map((mov) => (
+                <div
+                  key={mov.id}
+                  className="flex items-center justify-between p-3 rounded-md bg-muted/50"
+                  data-testid={`movement-${mov.id}`}
+                >
+                  <div className="flex items-center gap-2">
+                    {mov.type === "load" ? (
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-destructive" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{getProductName(mov.productId)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {getVehicleNumber(mov.vehicleId)} - {mov.type === "load" ? "Loaded" : "Sold"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-mono text-sm ${mov.type === "load" ? "text-primary" : "text-destructive"}`}>
+                      {mov.type === "load" ? "+" : "-"}{mov.quantity.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{mov.date}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason</Label>
-              <Input
-                id="reason"
-                placeholder="e.g., Purchase received, Damaged goods"
-                value={adjustmentReason}
-                onChange={(e) => setAdjustmentReason(e.target.value)}
-                data-testid="input-adjustment-reason"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setAdjustmentDialog(null);
-                  setAdjustmentQuantity("");
-                  setAdjustmentReason("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleAdjustment}
-                disabled={adjustStockMutation.isPending || !adjustmentQuantity}
-                data-testid="button-confirm-adjustment"
-              >
-                {adjustStockMutation.isPending
-                  ? "Processing..."
-                  : adjustmentDialog?.type === "add"
-                  ? "Add Stock"
-                  : "Reduce Stock"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
