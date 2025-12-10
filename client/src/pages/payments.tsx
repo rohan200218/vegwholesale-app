@@ -873,7 +873,9 @@ export default function Payments() {
                   </DialogTitle>
                   <DialogDescription>
                     {step === 'select' && 'Select a customer to view and edit their invoices'}
-                    {step === 'review' && 'Review invoice details, edit prices if needed, then finalize payment'}
+                    {step === 'review' && (customerSummary && customerSummary.totalPayments > 0 
+                      ? 'Review products taken and record remaining payment' 
+                      : 'Review invoice details, edit prices if needed, then finalize payment')}
                     {step === 'completed' && 'Payment has been recorded successfully'}
                   </DialogDescription>
                 </DialogHeader>
@@ -928,121 +930,179 @@ export default function Payments() {
                       )}
                     </div>
 
-                    <ScrollArea className="flex-1 border rounded-md">
-                      <div className="p-4 space-y-6">
-                        {customerInvoices.length === 0 ? (
-                          <div className="text-center text-muted-foreground py-8">
-                            No invoices found for this customer
+                    {customerSummary && customerSummary.totalPayments > 0 ? (
+                      <ScrollArea className="flex-1 border rounded-md">
+                        <div className="p-4 space-y-4">
+                          <div className="text-sm text-muted-foreground mb-2">
+                            Products taken by customer (read-only - already invoiced)
                           </div>
-                        ) : (
-                          customerInvoices.map((invoice) => {
-                            const edited = editedInvoices[invoice.id];
-                            const totals = getInvoiceTotal(invoice.id);
-                            
-                            return (
-                              <Card key={invoice.id} className="overflow-hidden" data-testid={`card-invoice-${invoice.id}`}>
-                                <CardHeader className="py-3 bg-muted/30">
-                                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                                    <div className="flex items-center gap-2">
-                                      <CardTitle className="text-sm">{invoice.invoiceNumber}</CardTitle>
-                                      <Badge variant="secondary" className="text-xs">{invoice.date}</Badge>
-                                    </div>
-                                    <Badge variant={invoice.status === 'completed' ? 'default' : 'outline'}>
-                                      {invoice.status}
-                                    </Badge>
+                          {customerInvoices.map((invoice) => (
+                            <Card key={invoice.id} className="overflow-hidden" data-testid={`card-invoice-${invoice.id}`}>
+                              <CardHeader className="py-2 bg-muted/30">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2">
+                                    <CardTitle className="text-sm">{invoice.invoiceNumber}</CardTitle>
+                                    <Badge variant="secondary" className="text-xs">{invoice.date}</Badge>
                                   </div>
-                                </CardHeader>
-                                <CardContent className="p-3 space-y-3">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead className="text-xs">Product</TableHead>
-                                        <TableHead className="text-xs text-center">Qty</TableHead>
-                                        <TableHead className="text-xs text-center">Price/Unit</TableHead>
-                                        <TableHead className="text-xs text-right">Total</TableHead>
+                                </div>
+                              </CardHeader>
+                              <CardContent className="p-3 space-y-2">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="text-xs">Product</TableHead>
+                                      <TableHead className="text-xs text-center">Qty</TableHead>
+                                      <TableHead className="text-xs text-right">Rate</TableHead>
+                                      <TableHead className="text-xs text-right">Amount</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {invoice.items.map((item) => (
+                                      <TableRow key={item.id}>
+                                        <TableCell className="text-sm">{item.product?.name || 'Unknown'}</TableCell>
+                                        <TableCell className="text-sm text-center">{item.quantity}</TableCell>
+                                        <TableCell className="text-sm text-right font-mono">₹{item.unitPrice}</TableCell>
+                                        <TableCell className="text-sm text-right font-mono">{item.total.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</TableCell>
                                       </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {invoice.items.map((item) => {
-                                        const editedItem = edited?.items.find(e => e.itemId === item.id);
-                                        const currentPrice = editedItem?.unitPrice ?? item.unitPrice;
-                                        const currentTotal = editedItem?.total ?? item.total;
-                                        
-                                        return (
-                                          <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
-                                            <TableCell className="text-sm">{item.product?.name || 'Unknown'}</TableCell>
-                                            <TableCell className="text-sm text-center">{item.quantity}</TableCell>
-                                            <TableCell className="text-center">
-                                              <Input
-                                                type="number"
-                                                className="h-7 w-20 text-center text-sm mx-auto"
-                                                value={currentPrice}
-                                                onChange={(e) => updateItemPrice(invoice.id, item.id, parseFloat(e.target.value) || 0)}
-                                                data-testid={`input-price-${item.id}`}
-                                              />
-                                            </TableCell>
-                                            <TableCell className="text-sm text-right font-mono">
-                                              {currentTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
-                                            </TableCell>
-                                          </TableRow>
-                                        );
-                                      })}
-                                    </TableBody>
-                                  </Table>
-                                </CardContent>
-                              </Card>
-                            );
-                          })
-                        )}
-                      </div>
-                    </ScrollArea>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                                <div className="flex items-center justify-between pt-2 border-t text-sm">
+                                  <span className="text-muted-foreground">
+                                    Hamali: {invoice.bags || 0} bags × ₹{invoice.hamaliRatePerBag || 0} = <span className="font-mono">₹{invoice.hamaliChargeAmount || 0}</span>
+                                  </span>
+                                  <span className="font-semibold">
+                                    Total: <span className="font-mono text-primary">{invoice.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                  </span>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    ) : (
+                      <ScrollArea className="flex-1 border rounded-md">
+                        <div className="p-4 space-y-6">
+                          {customerInvoices.length === 0 ? (
+                            <div className="text-center text-muted-foreground py-8">
+                              No invoices found for this customer
+                            </div>
+                          ) : (
+                            customerInvoices.map((invoice) => {
+                              const edited = editedInvoices[invoice.id];
+                              const totals = getInvoiceTotal(invoice.id);
+                              
+                              return (
+                                <Card key={invoice.id} className="overflow-hidden" data-testid={`card-invoice-${invoice.id}`}>
+                                  <CardHeader className="py-3 bg-muted/30">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <div className="flex items-center gap-2">
+                                        <CardTitle className="text-sm">{invoice.invoiceNumber}</CardTitle>
+                                        <Badge variant="secondary" className="text-xs">{invoice.date}</Badge>
+                                      </div>
+                                      <Badge variant={invoice.status === 'completed' ? 'default' : 'outline'}>
+                                        {invoice.status}
+                                      </Badge>
+                                    </div>
+                                  </CardHeader>
+                                  <CardContent className="p-3 space-y-3">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead className="text-xs">Product</TableHead>
+                                          <TableHead className="text-xs text-center">Qty</TableHead>
+                                          <TableHead className="text-xs text-center">Price/Unit</TableHead>
+                                          <TableHead className="text-xs text-right">Total</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {invoice.items.map((item) => {
+                                          const editedItem = edited?.items.find(e => e.itemId === item.id);
+                                          const currentPrice = editedItem?.unitPrice ?? item.unitPrice;
+                                          const currentTotal = editedItem?.total ?? item.total;
+                                          
+                                          return (
+                                            <TableRow key={item.id} data-testid={`row-item-${item.id}`}>
+                                              <TableCell className="text-sm">{item.product?.name || 'Unknown'}</TableCell>
+                                              <TableCell className="text-sm text-center">{item.quantity}</TableCell>
+                                              <TableCell className="text-center">
+                                                <Input
+                                                  type="number"
+                                                  className="h-7 w-20 text-center text-sm mx-auto"
+                                                  value={currentPrice}
+                                                  onChange={(e) => updateItemPrice(invoice.id, item.id, parseFloat(e.target.value) || 0)}
+                                                  data-testid={`input-price-${item.id}`}
+                                                />
+                                              </TableCell>
+                                              <TableCell className="text-sm text-right font-mono">
+                                                {currentTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })}
+                                      </TableBody>
+                                    </Table>
+                                  </CardContent>
+                                </Card>
+                              );
+                            })
+                          )}
+                        </div>
+                      </ScrollArea>
+                    )}
 
                     <div className="pt-4 border-t space-y-3">
-                      {customerInvoices.map((invoice) => {
-                        const edited = editedInvoices[invoice.id];
-                        const totals = getInvoiceTotal(invoice.id);
-                        
-                        return (
-                          <div key={invoice.id} className="space-y-2 pb-3 border-b last:border-b-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs text-muted-foreground font-medium">{invoice.invoiceNumber}:</span>
-                              <span className="text-xs text-muted-foreground">Hamali:</span>
-                              <Input
-                                type="number"
-                                className="h-7 w-16 text-center text-sm"
-                                value={edited?.bags ?? 0}
-                                onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
-                                placeholder="Bags"
-                                data-testid={`input-bags-fixed-${invoice.id}`}
-                              />
-                              <span className="text-xs">bags ×</span>
-                              <Input
-                                type="number"
-                                className="h-7 w-16 text-center text-sm"
-                                value={edited?.ratePerBag ?? 0}
-                                onChange={(e) => updateHamaliRate(invoice.id, parseFloat(e.target.value) || 0)}
-                                placeholder="₹/bag"
-                                data-testid={`input-rate-fixed-${invoice.id}`}
-                              />
-                              <span className="text-xs">=</span>
-                              <span className="text-sm font-medium font-mono">
-                                ₹{(edited?.hamaliChargeAmount ?? 0).toFixed(0)}
-                              </span>
+                      {customerSummary && customerSummary.totalPayments > 0 ? (
+                        <div className="text-sm text-muted-foreground text-center py-2">
+                          Invoice details are locked after first payment
+                        </div>
+                      ) : (
+                        customerInvoices.map((invoice) => {
+                          const edited = editedInvoices[invoice.id];
+                          const totals = getInvoiceTotal(invoice.id);
+                          
+                          return (
+                            <div key={invoice.id} className="space-y-2 pb-3 border-b last:border-b-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-muted-foreground font-medium">{invoice.invoiceNumber}:</span>
+                                <span className="text-xs text-muted-foreground">Hamali:</span>
+                                <Input
+                                  type="number"
+                                  className="h-7 w-16 text-center text-sm"
+                                  value={edited?.bags ?? 0}
+                                  onChange={(e) => updateHamaliBags(invoice.id, parseInt(e.target.value) || 0)}
+                                  placeholder="Bags"
+                                  data-testid={`input-bags-fixed-${invoice.id}`}
+                                />
+                                <span className="text-xs">bags ×</span>
+                                <Input
+                                  type="number"
+                                  className="h-7 w-16 text-center text-sm"
+                                  value={edited?.ratePerBag ?? 0}
+                                  onChange={(e) => updateHamaliRate(invoice.id, parseFloat(e.target.value) || 0)}
+                                  placeholder="₹/bag"
+                                  data-testid={`input-rate-fixed-${invoice.id}`}
+                                />
+                                <span className="text-xs">=</span>
+                                <span className="text-sm font-medium font-mono">
+                                  ₹{(edited?.hamaliChargeAmount ?? 0).toFixed(0)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-end gap-4 text-sm">
+                                <span className="text-muted-foreground">
+                                  Subtotal: <span className="font-mono">{totals.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                </span>
+                                <span className="text-muted-foreground">
+                                  Hamali: <span className="font-mono">{(edited?.hamaliChargeAmount ?? 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                </span>
+                                <span className="font-semibold">
+                                  Total: <span className="font-mono text-primary">{totals.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center justify-end gap-4 text-sm">
-                              <span className="text-muted-foreground">
-                                Subtotal: <span className="font-mono">{totals.subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                              </span>
-                              <span className="text-muted-foreground">
-                                Hamali: <span className="font-mono">{(edited?.hamaliChargeAmount ?? 0).toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                              </span>
-                              <span className="font-semibold">
-                                Total: <span className="font-mono text-primary">{totals.grandTotal.toLocaleString("en-IN", { style: "currency", currency: "INR" })}</span>
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                       
                       <div className="space-y-2 pt-2">
                         <div className="flex items-center justify-between">
@@ -1095,16 +1155,18 @@ export default function Payments() {
                       </div>
 
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => saveInvoiceChanges.mutate()}
-                          disabled={saveInvoiceChanges.isPending}
-                          className="flex-1"
-                          data-testid="button-save-changes"
-                        >
-                          <Save className="h-4 w-4 mr-2" />
-                          {saveInvoiceChanges.isPending ? "Saving..." : "Save Changes Only"}
-                        </Button>
+                        {(!customerSummary || customerSummary.totalPayments === 0) && (
+                          <Button
+                            variant="outline"
+                            onClick={() => saveInvoiceChanges.mutate()}
+                            disabled={saveInvoiceChanges.isPending}
+                            className="flex-1"
+                            data-testid="button-save-changes"
+                          >
+                            <Save className="h-4 w-4 mr-2" />
+                            {saveInvoiceChanges.isPending ? "Saving..." : "Save Changes Only"}
+                          </Button>
+                        )}
                         <Button
                           onClick={handleFinalizeAndPay}
                           disabled={customerInvoices.length === 0 || createCustomerPayment.isPending || saveInvoiceChanges.isPending}
