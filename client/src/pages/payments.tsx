@@ -1330,8 +1330,10 @@ export default function Payments() {
                             <span className="font-medium capitalize">{completedPaymentData.paymentMethod}</span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Invoices:</span>
-                            <span className="font-medium">{completedPaymentData.invoices.length}</span>
+                            <span className="text-muted-foreground">Invoice{completedPaymentData.invoices.length > 1 ? 's' : ''}:</span>
+                            <span className="font-medium font-mono text-xs">
+                              {completedPaymentData.invoices.map(inv => inv.invoiceNumber).join(', ')}
+                            </span>
                           </div>
                           <div className="flex justify-between text-sm border-t pt-2">
                             <span className="text-muted-foreground">Total Bags:</span>
