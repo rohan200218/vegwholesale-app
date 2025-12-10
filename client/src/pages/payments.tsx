@@ -321,7 +321,7 @@ export default function Payments() {
   });
 
   const createCustomerPayment = useMutation({
-    mutationFn: async (data: { customerId: string; amount: number; paymentMethod: string; date: string }) => {
+    mutationFn: async (data: { customerId: string; invoiceId?: string; amount: number; paymentMethod: string; date: string }) => {
       return apiRequest("POST", "/api/customer-payments", data);
     },
     onSuccess: (_, variables) => {
@@ -739,8 +739,12 @@ export default function Payments() {
     
     const paymentAmount = customerPaymentAmount ? parseFloat(customerPaymentAmount) : grandTotalAllInvoices;
     
+    // Link payment to the first unpaid/partially paid invoice
+    const invoiceId = customerInvoices.length > 0 ? customerInvoices[0].id : undefined;
+    
     createCustomerPayment.mutate({
       customerId: selectedCustomer,
+      invoiceId,
       amount: paymentAmount,
       paymentMethod: customerPaymentMethod,
       date: new Date().toISOString().split("T")[0],
