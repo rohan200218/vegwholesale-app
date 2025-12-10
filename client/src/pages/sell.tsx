@@ -671,35 +671,42 @@ export default function Sell() {
   const selectedVehiclesArray = vehicles.filter(v => selectedVehicleIds.has(v.id));
 
   return (
-    <div className="p-6 space-y-8">
-      <div>
-        <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-          <div>
-            <h2 className="text-xl font-semibold" data-testid="text-section-vehicles">Vehicle Fleet</h2>
-            <p className="text-sm text-muted-foreground">
-              Select multiple vehicles to sell (click to toggle)
-              {selectedVehicleIds.size > 0 && (
-                <Badge variant="secondary" className="ml-2">{selectedVehicleIds.size} selected</Badge>
-              )}
-            </p>
-          </div>
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold" data-testid="text-section-vehicles">Sell</h1>
+          {selectedVehicleIds.size > 0 && (
+            <Badge variant="secondary" className="text-xs">{selectedVehicleIds.size} selected</Badge>
+          )}
         </div>
+        {selectedVehicleIds.size > 0 && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              setSelectedVehicleIds(new Set());
+              setSaleDrafts({});
+            }}
+            data-testid="button-clear-all-sales"
+          >
+            Clear All
+          </Button>
+        )}
+      </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Card 
-                className="hover-elevate cursor-pointer border-dashed border-2 flex items-center justify-center min-h-[180px]"
-                data-testid="button-add-vehicle"
-              >
-                <CardContent className="flex flex-col items-center justify-center p-6 text-center">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-                    <Plus className="h-6 w-6 text-primary" />
-                  </div>
-                  <p className="font-medium">Add Vehicle</p>
-                </CardContent>
-              </Card>
-            </DialogTrigger>
+      <div className="flex gap-2 overflow-x-auto pb-2">
+        <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+          <DialogTrigger asChild>
+            <Card 
+              className="hover-elevate cursor-pointer border-dashed border-2 flex items-center justify-center w-28 h-24 flex-shrink-0"
+              data-testid="button-add-vehicle"
+            >
+              <CardContent className="flex flex-col items-center justify-center p-2 text-center">
+                <Plus className="h-5 w-5 text-primary mb-1" />
+                <span className="text-xs font-medium">Add</span>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Vehicle</DialogTitle>
@@ -972,82 +979,14 @@ export default function Sell() {
             </DialogContent>
           </Dialog>
 
-          {vehicles.map((vehicle) => {
-            const inventory = vehicleInventories[vehicle.id] || [];
-            const itemsWithStock = inventory.filter((inv) => inv.quantity > 0);
-            const hasInventory = itemsWithStock.length > 0;
-            const isSelected = selectedVehicleIds.has(vehicle.id);
+        {vehicles.map((vehicle) => {
+          const inventory = vehicleInventories[vehicle.id] || [];
+          const itemsWithStock = inventory.filter((inv) => inv.quantity > 0);
+          const hasInventory = itemsWithStock.length > 0;
+          const isSelected = selectedVehicleIds.has(vehicle.id);
 
+          if (isSelected) {
             return (
-              <Card
-                key={vehicle.id}
-                className={`hover-elevate cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary border-primary' : ''}`}
-                onClick={() => handleVehicleSelect(vehicle.id)}
-                data-testid={`card-vehicle-${vehicle.id}`}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      {isSelected ? (
-                        <Check className="h-5 w-5 text-primary" />
-                      ) : (
-                        <Truck className="h-5 w-5 text-primary" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isSelected && (
-                        <Badge variant="default" className="text-xs">Selected</Badge>
-                      )}
-                      <Badge variant={hasInventory ? "secondary" : "outline"}>
-                        {hasInventory ? `${itemsWithStock.length} items` : "Empty"}
-                      </Badge>
-                    </div>
-                  </div>
-                  <CardTitle className="text-base mt-2">{vehicle.number}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{vehicle.type}</p>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {hasInventory ? (
-                    <div className="space-y-1">
-                      {itemsWithStock.slice(0, 3).map((inv) => (
-                        <div key={inv.productId} className="flex justify-between text-sm">
-                          <span className="text-muted-foreground truncate">{getProductName(inv.productId)}</span>
-                          <span className="font-medium">{inv.quantity} {getProductUnit(inv.productId)}</span>
-                        </div>
-                      ))}
-                      {itemsWithStock.length > 3 && (
-                        <p className="text-xs text-muted-foreground">+{itemsWithStock.length - 3} more</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No products loaded</p>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-
-      {selectedVehiclesArray.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <h2 className="text-xl font-semibold">Customer Sales ({selectedVehiclesArray.length})</h2>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                setSelectedVehicleIds(new Set());
-                setSaleDrafts({});
-              }}
-              data-testid="button-clear-all-sales"
-            >
-              Clear All
-            </Button>
-          </div>
-          
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {selectedVehiclesArray.map((vehicle) => (
               <VehicleSalePane
                 key={vehicle.id}
                 vehicle={vehicle}
@@ -1059,10 +998,32 @@ export default function Sell() {
                 onClose={() => handleCloseSale(vehicle.id)}
                 onSaleComplete={() => handleSaleComplete(vehicle.id)}
               />
-            ))}
-          </div>
-        </div>
-      )}
+            );
+          }
+
+          return (
+            <Card
+              key={vehicle.id}
+              className="hover-elevate cursor-pointer w-28 h-24 flex-shrink-0"
+              onClick={() => handleVehicleSelect(vehicle.id)}
+              data-testid={`card-vehicle-${vehicle.id}`}
+            >
+              <CardContent className="p-2 h-full flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <Truck className="h-4 w-4 text-primary" />
+                  <Badge variant={hasInventory ? "secondary" : "outline"} className="text-[10px] px-1 py-0">
+                    {hasInventory ? itemsWithStock.length : 0}
+                  </Badge>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold truncate" title={vehicle.number}>{vehicle.number}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{vehicle.type}</div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }
