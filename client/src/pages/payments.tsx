@@ -204,22 +204,20 @@ export default function Payments() {
     setEditedInvoices(prev => {
       const invoice = prev[invoiceId];
       if (!invoice) return prev;
-      const hamaliChargeAmount = newBags * invoice.ratePerBag;
       return {
         ...prev,
-        [invoiceId]: { ...invoice, bags: newBags, hamaliChargeAmount },
+        [invoiceId]: { ...invoice, bags: newBags },
       };
     });
   };
 
-  const updateHamaliRate = (invoiceId: string, newRate: number) => {
+  const updateHamaliAmount = (invoiceId: string, newHamali: number) => {
     setEditedInvoices(prev => {
       const invoice = prev[invoiceId];
       if (!invoice) return prev;
-      const hamaliChargeAmount = invoice.bags * newRate;
       return {
         ...prev,
-        [invoiceId]: { ...invoice, ratePerBag: newRate, hamaliChargeAmount },
+        [invoiceId]: { ...invoice, hamaliChargeAmount: newHamali },
       };
     });
   };
@@ -737,7 +735,7 @@ export default function Payments() {
                   Record Payment
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+              <DialogContent className="max-w-4xl h-[85vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle>
                     {step === 'select' && 'Select Customer'}
@@ -859,13 +857,7 @@ export default function Payments() {
                                                   type="number"
                                                   className="h-7 w-20 text-center text-sm mx-auto"
                                                   value={edited?.hamaliChargeAmount ?? 0}
-                                                  onChange={(e) => {
-                                                    const newHamali = parseFloat(e.target.value) || 0;
-                                                    setEditedInvoices(prev => ({
-                                                      ...prev,
-                                                      [invoice.id]: { ...prev[invoice.id], hamaliChargeAmount: newHamali },
-                                                    }));
-                                                  }}
+                                                  onChange={(e) => updateHamaliAmount(invoice.id, parseFloat(e.target.value) || 0)}
                                                   data-testid={`input-hamali-${invoice.id}`}
                                                 />
                                               ) : null}
