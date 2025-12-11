@@ -156,6 +156,25 @@ export default function Reports() {
       .filter(p => p.invoiceId && filteredInvoiceIds.has(p.invoiceId))
       .reduce((sum, p) => sum + (p.amount || 0), 0);
     const totalRemaining = totalSales - totalPaid;
+    
+    // Calculate opening and closing balance for the date range
+    const salesBeforePeriod = invoices
+      .filter(inv => startDate && inv.date < startDate)
+      .reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+    const paymentsBeforePeriod = customerPayments
+      .filter(p => startDate && p.date < startDate)
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    const openingBalance = salesBeforePeriod - paymentsBeforePeriod;
+    
+    const salesInPeriod = filteredInvoices.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+    const paymentsInPeriod = customerPayments
+      .filter(p => {
+        if (startDate && p.date < startDate) return false;
+        if (endDate && p.date > endDate) return false;
+        return true;
+      })
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    const closingBalance = openingBalance + salesInPeriod - paymentsInPeriod;
 
     return {
       totalSales,
@@ -166,8 +185,11 @@ export default function Reports() {
       invoicesWithHamali,
       totalPaid,
       totalRemaining,
+      openingBalance,
+      closingBalance,
+      paymentsInPeriod,
     };
-  }, [filteredInvoices, customerPayments]);
+  }, [filteredInvoices, customerPayments, invoices, startDate, endDate]);
 
   const dailySummary = useMemo((): DailySummary[] => {
     const dateMap = new Map<string, DailySummary>();
@@ -401,6 +423,47 @@ export default function Reports() {
             Daily CSV
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">Opening Balance</CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold font-mono ${summary.openingBalance > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-green-600 dark:text-green-500'}`} data-testid="text-opening-balance">
+              {formatCurrency(summary.openingBalance)}
+            </div>
+            <p className="text-xs text-muted-foreground">Outstanding before period</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">Payments Received</CardTitle>
+            <CreditCard className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-green-600 dark:text-green-500" data-testid="text-period-payments">
+              {formatCurrency(summary.paymentsInPeriod)}
+            </div>
+            <p className="text-xs text-muted-foreground">During selected period</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">Closing Balance</CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold font-mono ${summary.closingBalance > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-green-600 dark:text-green-500'}`} data-testid="text-closing-balance">
+              {formatCurrency(summary.closingBalance)}
+            </div>
+            <p className="text-xs text-muted-foreground">Outstanding after period</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">

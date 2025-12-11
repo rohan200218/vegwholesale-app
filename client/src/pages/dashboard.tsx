@@ -38,7 +38,7 @@ import {
   Area,
   Legend,
 } from "recharts";
-import type { Vendor, Customer, Product, Invoice, Purchase } from "@shared/schema";
+import type { Vendor, Customer, Product, Invoice, Purchase, CustomerPayment } from "@shared/schema";
 
 function MetricCard({
   title,
@@ -145,16 +145,47 @@ export default function Dashboard() {
     queryKey: ["/api/purchases"],
   });
 
-  const isLoading = vendorsLoading || customersLoading || productsLoading || invoicesLoading || purchasesLoading;
+  const { data: customerPayments = [], isLoading: paymentsLoading } = useQuery<CustomerPayment[]>({
+    queryKey: ["/api/customer-payments"],
+  });
+
+  const isLoading = vendorsLoading || customersLoading || productsLoading || invoicesLoading || purchasesLoading || paymentsLoading;
 
   const totalStockValue = products.reduce(
     (acc, p) => acc + p.currentStock * p.purchasePrice,
     0
   );
 
+  const today = new Date().toISOString().split("T")[0];
+  
   const todaySales = invoices
-    .filter((i) => i.date === new Date().toISOString().split("T")[0])
+    .filter((i) => i.date === today)
     .reduce((acc, i) => acc + i.grandTotal, 0);
+
+  // Calculate opening and closing balances
+  const balances = useMemo(() => {
+    const totalSalesBeforeToday = invoices
+      .filter(inv => inv.date < today)
+      .reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+    
+    const totalPaymentsBeforeToday = customerPayments
+      .filter(p => p.date < today)
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    const openingBalance = totalSalesBeforeToday - totalPaymentsBeforeToday;
+    
+    const todayTotalSales = invoices
+      .filter(inv => inv.date === today)
+      .reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+    
+    const todayPayments = customerPayments
+      .filter(p => p.date === today)
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    const closingBalance = openingBalance + todayTotalSales - todayPayments;
+    
+    return { openingBalance, closingBalance, todayPayments };
+  }, [invoices, customerPayments, today]);
 
   const recentInvoices = [...invoices]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -272,6 +303,47 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card className="bg-primary/5 border-primary/20">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">Opening Balance</CardTitle>
+            <IndianRupee className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold font-mono ${balances.openingBalance > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-green-600 dark:text-green-500'}`} data-testid="text-opening-balance">
+              ₹{balances.openingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-muted-foreground">Outstanding at start of day</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Today's Sales</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono" data-testid="text-today-sales">
+              ₹{todaySales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-muted-foreground">{invoices.filter((i) => i.date === today).length} invoices today</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-primary/5 border-primary/20">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-primary">Closing Balance</CardTitle>
+            <IndianRupee className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold font-mono ${balances.closingBalance > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-green-600 dark:text-green-500'}`} data-testid="text-closing-balance">
+              ₹{balances.closingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </div>
+            <p className="text-xs text-muted-foreground">Current outstanding (₹{balances.todayPayments.toLocaleString("en-IN")} received today)</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Stock Value"
@@ -292,11 +364,10 @@ export default function Dashboard() {
           icon={UserCheck}
         />
         <MetricCard
-          title="Today's Sales"
-          value={`₹${todaySales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
-          subtitle={`${invoices.filter((i) => i.date === new Date().toISOString().split("T")[0]).length} invoices`}
-          icon={TrendingUp}
-          trend="up"
+          title="Total Invoices"
+          value={invoices.length}
+          subtitle="All time"
+          icon={Receipt}
         />
       </div>
 
