@@ -128,7 +128,8 @@ export default function Reports() {
     }
     return "-";
   };
-
+  
+  
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
       if (startDate && inv.date < startDate) return false;
@@ -148,6 +149,7 @@ export default function Reports() {
     const totalSubtotal = filteredInvoices.reduce((sum, inv) => sum + (inv.subtotal || 0), 0);
     const totalHamali = filteredInvoices.reduce((sum, inv) => sum + (inv.hamaliChargeAmount || 0), 0);
     const totalWeight = filteredInvoices.reduce((sum, inv) => sum + (inv.totalKgWeight || 0), 0);
+    const totalBags = filteredInvoices.reduce((sum, inv) => sum + (inv.bags || 0), 0);
     const invoiceCount = filteredInvoices.length;
     const invoicesWithHamali = filteredInvoices.filter(inv => inv.includeHamaliCharge && (inv.hamaliChargeAmount || 0) > 0).length;
     
@@ -181,6 +183,7 @@ export default function Reports() {
       totalSubtotal,
       totalHamali,
       totalWeight,
+      totalBags,
       invoiceCount,
       invoicesWithHamali,
       totalPaid,
@@ -616,6 +619,7 @@ export default function Reports() {
                         <TableHead>Customer</TableHead>
                         <TableHead>Vendor</TableHead>
                         <TableHead className="text-right">Weight</TableHead>
+                        <TableHead className="text-right">Bags</TableHead>
                         <TableHead className="text-right">Subtotal</TableHead>
                         <TableHead className="text-right">Hamali</TableHead>
                         <TableHead className="text-right">Total</TableHead>
@@ -650,6 +654,9 @@ export default function Reports() {
                             {(inv.totalKgWeight || 0).toFixed(2)} KG
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
+                            {inv.bags || 0}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
                             {formatCurrency(inv.subtotal)}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
@@ -670,6 +677,9 @@ export default function Reports() {
                         <TableCell colSpan={5}>TOTAL</TableCell>
                         <TableCell className="text-right font-mono">
                           {summary.totalWeight.toFixed(2)} KG
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {summary.totalBags}
                         </TableCell>
                         <TableCell className="text-right font-mono">
                           {formatCurrency(summary.totalSubtotal)}
