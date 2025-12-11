@@ -114,6 +114,16 @@ export default function Reports() {
   const getVendorName = (id: string | null) => vendors.find((v) => v.id === id)?.name || "-";
   const getProductName = (id: string) => products.find((p) => p.id === id)?.name || "Unknown";
   const getVehicleNumber = (id: string | null) => vehicles.find((v) => v.id === id)?.number || "-";
+  const getInvoiceVendorName = (inv: Invoice) => {
+    if (inv.vendorId) {
+      return getVendorName(inv.vendorId);
+    }
+    const vehicle = vehicles.find(v => v.id === inv.vehicleId);
+    if (vehicle?.vendorId) {
+      return getVendorName(vehicle.vendorId);
+    }
+    return "-";
+  };
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
@@ -121,10 +131,13 @@ export default function Reports() {
       if (endDate && inv.date > endDate) return false;
       if (selectedVehicleId !== "all" && inv.vehicleId !== selectedVehicleId) return false;
       if (selectedCustomerId !== "all" && inv.customerId !== selectedCustomerId) return false;
-      if (selectedVendorId !== "all" && inv.vendorId !== selectedVendorId) return false;
+      if (selectedVendorId !== "all") {
+        const invoiceVendorId = inv.vendorId || vehicles.find(v => v.id === inv.vehicleId)?.vendorId;
+        if (invoiceVendorId !== selectedVendorId) return false;
+      }
       return true;
     }).sort((a, b) => b.date.localeCompare(a.date) || b.invoiceNumber.localeCompare(a.invoiceNumber));
-  }, [invoices, startDate, endDate, selectedVehicleId, selectedCustomerId, selectedVendorId]);
+  }, [invoices, startDate, endDate, selectedVehicleId, selectedCustomerId, selectedVendorId, vehicles]);
 
   const summary = useMemo(() => {
     const totalSales = filteredInvoices.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
@@ -195,7 +208,7 @@ export default function Reports() {
       inv.date || "",
       getVehicleNumber(inv.vehicleId),
       getCustomerName(inv.customerId),
-      getVendorName(inv.vendorId),
+      getInvoiceVendorName(inv),
       (inv.totalKgWeight || 0).toFixed(2),
       (inv.subtotal || 0).toFixed(2),
       (inv.hamaliChargeAmount || 0).toFixed(2),
@@ -525,7 +538,7 @@ export default function Reports() {
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Package className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">{getVendorName(inv.vendorId)}</span>
+                              <span className="text-sm">{getInvoiceVendorName(inv)}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
