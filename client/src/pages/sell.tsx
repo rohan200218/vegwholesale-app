@@ -69,6 +69,7 @@ interface VehicleSalePaneProps {
   inventory: VehicleInventory[];
   products: Product[];
   customers: Customer[];
+  vendors: Vendor[];
   draft: SaleDraft;
   onUpdateDraft: (draft: SaleDraft) => void;
   onClose: () => void;
@@ -79,7 +80,8 @@ function VehicleSalePane({
   vehicle, 
   inventory, 
   products, 
-  customers, 
+  customers,
+  vendors,
   draft, 
   onUpdateDraft, 
   onClose,
@@ -299,7 +301,12 @@ function VehicleSalePane({
           <div className="flex items-center gap-2 min-w-0">
             <Truck className={`h-5 w-5 flex-shrink-0 ${isNewVehicle ? 'text-primary' : 'text-amber-600'}`} />
             <div className="flex flex-col">
-              <span className="font-semibold text-sm" data-testid={`text-sale-vehicle-number-${vehicle.id}`}>{vehicle.number}</span>
+              <span className="font-semibold text-sm" data-testid={`text-sale-vehicle-number-${vehicle.id}`}>
+                {vehicle.number}
+                {vehicle.vendorId && vendors.find(v => v.id === vehicle.vendorId) && (
+                  <span className="text-muted-foreground font-normal"> - {vendors.find(v => v.id === vehicle.vendorId)?.name}</span>
+                )}
+              </span>
               <span className={`text-xs ${isNewVehicle ? 'text-primary' : 'text-amber-600'}`}>
                 Stock: {totalVehicleStock.toFixed(1)} KG
               </span>
@@ -1332,6 +1339,7 @@ export default function Sell() {
                 inventory={vehicleInventories[vehicle.id] || []}
                 products={products}
                 customers={customers}
+                vendors={vendors}
                 draft={saleDrafts[vehicle.id] || { products: [], customerName: "", selectedCustomerId: "", hamaliCharge: 0 }}
                 onUpdateDraft={(draft) => handleUpdateDraft(vehicle.id, draft)}
                 onClose={() => handleCloseSale(vehicle.id)}
