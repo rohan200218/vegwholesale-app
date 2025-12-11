@@ -792,8 +792,18 @@ export default function Sell() {
   }, []);
 
   const handleSaleComplete = useCallback((vehicleId: string) => {
-    handleCloseSale(vehicleId);
-  }, [handleCloseSale]);
+    // Reset the draft instead of closing - pane stays open for more sales
+    setSaleDrafts(prev => ({
+      ...prev,
+      [vehicleId]: {
+        products: [],
+        customerName: "",
+        selectedCustomerId: "",
+        hamaliCharge: 0,
+        hamaliRatePerBag: 0,
+      },
+    }));
+  }, []);
 
   if (vehiclesLoading) {
     return (
