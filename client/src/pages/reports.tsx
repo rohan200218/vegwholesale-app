@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Package, ArrowUpRight, Receipt, CreditCard, Download, Calendar, Filter, Truck, Users, Scale, ShoppingBag, FileText, BarChart3 } from "lucide-react";
-import type { Product, Invoice, Customer, Vehicle, InvoiceItem } from "@shared/schema";
+import type { Product, Invoice, Customer, Vehicle, InvoiceItem, Vendor } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
@@ -69,6 +69,7 @@ export default function Reports() {
   const [customEndDate, setCustomEndDate] = useState(today);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("all");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
+  const [selectedVendorId, setSelectedVendorId] = useState<string>("all");
 
   const { startDate, endDate } = useMemo(() => {
     switch (periodType) {
@@ -105,7 +106,12 @@ export default function Reports() {
     queryKey: ["/api/vehicles"],
   });
 
+  const { data: vendors = [] } = useQuery<Vendor[]>({
+    queryKey: ["/api/vendors"],
+  });
+
   const getCustomerName = (id: string) => customers.find((c) => c.id === id)?.name || "Unknown";
+  const getVendorName = (id: string | null) => vendors.find((v) => v.id === id)?.name || "-";
   const getProductName = (id: string) => products.find((p) => p.id === id)?.name || "Unknown";
   const getVehicleNumber = (id: string | null) => vehicles.find((v) => v.id === id)?.number || "-";
 
@@ -182,12 +188,13 @@ export default function Reports() {
   ];
 
   const downloadSalesReport = () => {
-    const headers = ["Invoice #", "Date", "Vehicle", "Customer", "Weight (KG)", "Subtotal", "Hamali", "Grand Total"];
+    const headers = ["Invoice #", "Date", "Vehicle", "Customer", "Vendor", "Weight (KG)", "Subtotal", "Hamali", "Grand Total"];
     const rows = filteredInvoices.map((inv) => [
       inv.invoiceNumber || "",
       inv.date || "",
       getVehicleNumber(inv.vehicleId),
       getCustomerName(inv.customerId),
+      "-",
       (inv.totalKgWeight || 0).toFixed(2),
       (inv.subtotal || 0).toFixed(2),
       (inv.hamaliChargeAmount || 0).toFixed(2),
@@ -198,6 +205,7 @@ export default function Reports() {
       "",
       "",
       `${filteredInvoices.length} sales`,
+      "",
       summary.totalWeight.toFixed(2),
       summary.totalSubtotal.toFixed(2),
       summary.totalHamali.toFixed(2),
@@ -301,13 +309,29 @@ export default function Reports() {
               </SelectContent>
             </Select>
           </div>
-          {(selectedVehicleId !== "all" || selectedCustomerId !== "all") && (
+          <div className="space-y-2">
+            <Label>Vendor</Label>
+            <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
+              <SelectTrigger className="w-44" data-testid="select-filter-vendor">
+                <Package className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="All Vendors" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vendors</SelectItem>
+                {vendors.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {(selectedVehicleId !== "all" || selectedCustomerId !== "all" || selectedVendorId !== "all") && (
             <Button 
               variant="ghost" 
               size="sm"
               onClick={() => {
                 setSelectedVehicleId("all");
                 setSelectedCustomerId("all");
+                setSelectedVendorId("all");
               }}
               data-testid="button-clear-filters"
             >
@@ -471,6 +495,7 @@ export default function Reports() {
                         <TableHead>Date</TableHead>
                         <TableHead>Vehicle</TableHead>
                         <TableHead>Customer</TableHead>
+                        <TableHead>Vendor</TableHead>
                         <TableHead className="text-right">Weight</TableHead>
                         <TableHead className="text-right">Subtotal</TableHead>
                         <TableHead className="text-right">Hamali</TableHead>
@@ -494,6 +519,12 @@ export default function Reports() {
                             <div className="flex items-center gap-1">
                               <Users className="h-3 w-3 text-muted-foreground" />
                               <span className="text-sm">{getCustomerName(inv.customerId)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Package className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">-</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
