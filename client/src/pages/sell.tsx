@@ -276,14 +276,26 @@ function VehicleSalePane({
 
   const hasProductsWithWeight = draft.products.some(p => p.weight > 0);
   const grandTotal = saleSubtotal + draft.hamaliCharge;
+  
+  // Check if vehicle is new (today's date)
+  const today = new Date().toISOString().split("T")[0];
+  const isNewVehicle = vehicle.entryDate === today;
+  
+  // Calculate total stock for this vehicle
+  const totalVehicleStock = inventory.reduce((sum, inv) => sum + inv.quantity, 0);
 
   return (
-    <Card className="border-primary/30 w-80 flex-shrink-0" data-testid={`section-customer-sale-${vehicle.id}`}>
-      <CardHeader className="p-3 pb-2">
+    <Card className={`w-80 flex-shrink-0 ${isNewVehicle ? 'border-primary/50 ring-1 ring-primary/30' : 'border-amber-500/50'}`} data-testid={`section-customer-sale-${vehicle.id}`}>
+      <CardHeader className={`p-3 pb-2 ${isNewVehicle ? 'bg-primary/5' : 'bg-amber-50 dark:bg-amber-950/20'}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <Truck className="h-4 w-4 text-primary flex-shrink-0" />
-            <span className="font-semibold text-sm truncate" data-testid={`text-sale-vehicle-number-${vehicle.id}`}>{vehicle.number}</span>
+            <Truck className={`h-5 w-5 flex-shrink-0 ${isNewVehicle ? 'text-primary' : 'text-amber-600'}`} />
+            <div className="flex flex-col">
+              <span className="font-semibold text-sm" data-testid={`text-sale-vehicle-number-${vehicle.id}`}>{vehicle.number}</span>
+              <span className={`text-xs ${isNewVehicle ? 'text-primary' : 'text-amber-600'}`}>
+                Stock: {totalVehicleStock.toFixed(1)} KG
+              </span>
+            </div>
           </div>
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose} data-testid={`button-close-sale-${vehicle.id}`}>
             <X className="h-3 w-3" />
