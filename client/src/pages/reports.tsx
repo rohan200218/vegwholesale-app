@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Package, ArrowUpRight, Receipt, CreditCard, Download, Calendar, Filter, Truck, Users, Scale, ShoppingBag, FileText, BarChart3 } from "lucide-react";
-import type { Product, Invoice, Customer, Vehicle, InvoiceItem, Vendor } from "@shared/schema";
+import type { Product, Invoice, Customer, Vehicle, InvoiceItem, Vendor, CustomerPayment } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
@@ -110,6 +110,10 @@ export default function Reports() {
     queryKey: ["/api/vendors"],
   });
 
+  const { data: customerPayments = [] } = useQuery<CustomerPayment[]>({
+    queryKey: ["/api/customer-payments"],
+  });
+
   const getCustomerName = (id: string) => customers.find((c) => c.id === id)?.name || "Unknown";
   const getVendorName = (id: string | null) => vendors.find((v) => v.id === id)?.name || "-";
   const getProductName = (id: string) => products.find((p) => p.id === id)?.name || "Unknown";
@@ -146,6 +150,12 @@ export default function Reports() {
     const totalWeight = filteredInvoices.reduce((sum, inv) => sum + (inv.totalKgWeight || 0), 0);
     const invoiceCount = filteredInvoices.length;
     const invoicesWithHamali = filteredInvoices.filter(inv => inv.includeHamaliCharge && (inv.hamaliChargeAmount || 0) > 0).length;
+    
+    const filteredInvoiceIds = new Set(filteredInvoices.map(inv => inv.id));
+    const totalPaid = customerPayments
+      .filter(p => p.invoiceId && filteredInvoiceIds.has(p.invoiceId))
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalRemaining = totalSales - totalPaid;
 
     return {
       totalSales,
@@ -154,8 +164,10 @@ export default function Reports() {
       totalWeight,
       invoiceCount,
       invoicesWithHamali,
+      totalPaid,
+      totalRemaining,
     };
-  }, [filteredInvoices]);
+  }, [filteredInvoices, customerPayments]);
 
   const dailySummary = useMemo((): DailySummary[] => {
     const dateMap = new Map<string, DailySummary>();
@@ -361,7 +373,7 @@ export default function Reports() {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
@@ -391,7 +403,7 @@ export default function Reports() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <Card className="border-primary/30 bg-primary/5">
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
             <CardTitle className="text-sm font-medium text-primary">
@@ -464,6 +476,36 @@ export default function Reports() {
               {formatCurrency(summary.invoiceCount > 0 ? summary.totalSales / summary.invoiceCount : 0)}
             </div>
             <p className="text-xs text-muted-foreground">Per transaction</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Paid
+            </CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold font-mono text-green-600 dark:text-green-500" data-testid="text-total-paid">
+              {formatCurrency(summary.totalPaid)}
+            </div>
+            <p className="text-xs text-muted-foreground">Received from customers</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Remaining
+            </CardTitle>
+            <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold font-mono ${summary.totalRemaining > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-green-600 dark:text-green-500'}`} data-testid="text-total-remaining">
+              {formatCurrency(summary.totalRemaining)}
+            </div>
+            <p className="text-xs text-muted-foreground">Outstanding balance</p>
           </CardContent>
         </Card>
       </div>
