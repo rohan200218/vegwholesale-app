@@ -88,12 +88,12 @@ app.use((req, res, next) => {
   httpServer.listen(
   {
     port,
-    host: "localhost",
-    reusePort: false,
+    host: "127.0.0.1", // or remove host entirely
+    // remove reusePort on Windows
+    // reusePort: true,
   },
   () => {
-    log(`serving on http://localhost:${port}`);
+    log(`serving on port ${port}`);
   },
 );
-
 })();
