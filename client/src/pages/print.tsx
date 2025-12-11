@@ -57,7 +57,9 @@ export default function PrintCenter() {
   const selectedInvoiceData = invoices.find((i) => i.id === selectedInvoice);
   const customer = selectedInvoiceData ? getCustomer(selectedInvoiceData.customerId) : null;
   const vehicle = selectedInvoiceData ? getVehicle(selectedInvoiceData.vehicleId) : null;
-  const vendor = selectedInvoiceData ? getVendor(selectedInvoiceData.vendorId) : null;
+  const vendor = selectedInvoiceData 
+    ? (getVendor(selectedInvoiceData.vendorId) || (vehicle ? getVendor(vehicle.vendorId) : null))
+    : null;
 
   const handlePrint = () => {
     window.print();
