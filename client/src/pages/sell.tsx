@@ -735,13 +735,24 @@ export default function Sell() {
     const isCurrentlySelected = selectedVehicleIds.has(vehicleId);
     
     if (isCurrentlySelected) {
-      // Deselect if already selected
-      setSelectedVehicleIds(new Set());
-      setSaleDrafts({});
+      setSelectedVehicleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(vehicleId);
+        return newSet;
+      });
+      setSaleDrafts(prevDrafts => {
+        const newDrafts = { ...prevDrafts };
+        delete newDrafts[vehicleId];
+        return newDrafts;
+      });
     } else {
-      // Single selection mode - clear others and select this one
-      setSelectedVehicleIds(new Set([vehicleId]));
-      setSaleDrafts({
+      setSelectedVehicleIds(prev => {
+        const newSet = new Set(prev);
+        newSet.add(vehicleId);
+        return newSet;
+      });
+      setSaleDrafts(prevDrafts => ({
+        ...prevDrafts,
         [vehicleId]: {
           products: [],
           customerName: "",
@@ -749,7 +760,7 @@ export default function Sell() {
           hamaliCharge: 0,
           hamaliRatePerBag: 0,
         },
-      });
+      }));
     }
   }, [selectedVehicleIds]);
 
@@ -802,7 +813,23 @@ export default function Sell() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold" data-testid="text-section-vehicles">Sell</h1>
+          {selectedVehicleIds.size > 0 && (
+            <Badge variant="secondary" className="text-xs">{selectedVehicleIds.size} selected</Badge>
+          )}
         </div>
+        {selectedVehicleIds.size > 0 && (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              setSelectedVehicleIds(new Set());
+              setSaleDrafts({});
+            }}
+            data-testid="button-clear-all-sales"
+          >
+            Clear All
+          </Button>
+        )}
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-2">
