@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Printer, FileText, Truck } from "lucide-react";
-import type { Invoice, InvoiceItem, Customer, Product, CompanySettings } from "@shared/schema";
+import type { Invoice, InvoiceItem, Customer, Product, CompanySettings, Vehicle, Vendor } from "@shared/schema";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function PrintCenter() {
@@ -30,6 +30,14 @@ export default function PrintCenter() {
     queryKey: ["/api/products"],
   });
 
+  const { data: vehicles = [] } = useQuery<Vehicle[]>({
+    queryKey: ["/api/vehicles"],
+  });
+
+  const { data: vendors = [] } = useQuery<Vendor[]>({
+    queryKey: ["/api/vendors"],
+  });
+
   const { data: companySettings } = useQuery<CompanySettings | null>({
     queryKey: ["/api/company-settings"],
   });
@@ -43,9 +51,13 @@ export default function PrintCenter() {
   const getCustomer = (id: string) => customers.find((c) => c.id === id);
   const getProductName = (id: string) => products.find((p) => p.id === id)?.name || "Unknown";
   const getProductUnit = (id: string) => products.find((p) => p.id === id)?.unit || "";
+  const getVehicle = (id: string | null) => id ? vehicles.find((v) => v.id === id) : null;
+  const getVendor = (id: string | null) => id ? vendors.find((v) => v.id === id) : null;
 
   const selectedInvoiceData = invoices.find((i) => i.id === selectedInvoice);
   const customer = selectedInvoiceData ? getCustomer(selectedInvoiceData.customerId) : null;
+  const vehicle = selectedInvoiceData ? getVehicle(selectedInvoiceData.vehicleId) : null;
+  const vendor = selectedInvoiceData ? getVendor(selectedInvoiceData.vendorId) : null;
 
   const handlePrint = () => {
     window.print();
@@ -163,7 +175,27 @@ export default function PrintCenter() {
                     )}
                   </div>
                 </div>
-                {documentType === "challan" && (
+                <div>
+                  <h4 className="text-sm font-semibold mb-1 uppercase text-muted-foreground">Source Details</h4>
+                  <div className="border border-border rounded-md p-3">
+                    {vehicle && (
+                      <p className="text-sm">
+                        <span className="font-medium">Vehicle:</span> {vehicle.number}
+                      </p>
+                    )}
+                    {vendor && (
+                      <p className="text-sm">
+                        <span className="font-medium">Vendor:</span> {vendor.name}
+                      </p>
+                    )}
+                    {!vehicle && !vendor && (
+                      <p className="text-sm text-muted-foreground">-</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {documentType === "challan" && (
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h4 className="text-sm font-semibold mb-1 uppercase text-muted-foreground">Ship To</h4>
                     <div className="border border-border rounded-md p-3">
@@ -173,8 +205,8 @@ export default function PrintCenter() {
                       )}
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
 
               <div>
                 <table className="w-full border-collapse">
