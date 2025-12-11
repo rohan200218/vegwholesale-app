@@ -169,15 +169,22 @@ function VehicleSalePane({
         throw new Error("Please select products to sell");
       }
 
-      // Check if all products have sufficient stock
+      // Check if all products have sufficient stock in the vehicle's inventory
       for (const saleProduct of draft.products) {
         if (saleProduct.weight <= 0) continue;
         const product = products.find(p => p.id === saleProduct.productId);
-        if (product && product.currentStock < saleProduct.weight) {
-          throw new Error(`Insufficient stock for ${product.name}. Available: ${product.currentStock} ${product.unit}, Requested: ${saleProduct.weight} ${product.unit}`);
-        }
-        if (product && product.currentStock === 0) {
-          throw new Error(`No stock available for ${product.name}`);
+        const vehicleInventoryItem = inventory.find(i => i.productId === saleProduct.productId);
+        
+        // First check vehicle inventory (primary validation for sales from vehicles)
+        if (vehicleInventoryItem) {
+          if (vehicleInventoryItem.quantity < saleProduct.weight) {
+            throw new Error(`Insufficient stock in vehicle for ${product?.name || 'product'}. Available in vehicle: ${vehicleInventoryItem.quantity} KG, Requested: ${saleProduct.weight} KG`);
+          }
+          if (vehicleInventoryItem.quantity === 0) {
+            throw new Error(`No stock available in vehicle for ${product?.name || 'product'}`);
+          }
+        } else {
+          throw new Error(`${product?.name || 'Product'} is not loaded in this vehicle`);
         }
       }
 
