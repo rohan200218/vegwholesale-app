@@ -225,6 +225,100 @@ export default function Reports() {
     downloadCSV([headers, ...rows, totals], `daily-summary-${startDate}-to-${endDate}.csv`);
   };
 
+  const FilterSection = () => (
+    <Card className="mb-4">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Filter className="h-4 w-4" />
+          Filters
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-end gap-4 flex-wrap">
+          <div className="space-y-2">
+            <Label>Quick Select</Label>
+            <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+              <SelectTrigger className="w-40" data-testid="select-period-type">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="week">Last 7 Days</SelectItem>
+                <SelectItem value="month">Last 30 Days</SelectItem>
+                <SelectItem value="custom">Custom Range</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {periodType === "custom" && (
+            <>
+              <div className="space-y-2">
+                <Label>From Date</Label>
+                <Input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  data-testid="input-filter-start-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>To Date</Label>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  data-testid="input-filter-end-date"
+                />
+              </div>
+            </>
+          )}
+          <div className="space-y-2">
+            <Label>Vehicle</Label>
+            <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+              <SelectTrigger className="w-44" data-testid="select-filter-vehicle">
+                <Truck className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="All Vehicles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vehicles</SelectItem>
+                {vehicles.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.number}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Customer</Label>
+            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+              <SelectTrigger className="w-44" data-testid="select-filter-customer">
+                <Users className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="All Customers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Customers</SelectItem>
+                {customers.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {(selectedVehicleId !== "all" || selectedCustomerId !== "all") && (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => {
+                setSelectedVehicleId("all");
+                setSelectedCustomerId("all");
+              }}
+              data-testid="button-clear-filters"
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   if (invoicesLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -258,98 +352,6 @@ export default function Reports() {
           </Button>
         </div>
       </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="space-y-2">
-              <Label>Quick Select</Label>
-              <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-                <SelectTrigger className="w-40" data-testid="select-period-type">
-                  <SelectValue placeholder="Select period" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">Last 7 Days</SelectItem>
-                  <SelectItem value="month">Last 30 Days</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {periodType === "custom" && (
-              <>
-                <div className="space-y-2">
-                  <Label>From Date</Label>
-                  <Input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    data-testid="input-filter-start-date"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>To Date</Label>
-                  <Input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    data-testid="input-filter-end-date"
-                  />
-                </div>
-              </>
-            )}
-            <div className="space-y-2">
-              <Label>Vehicle</Label>
-              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-                <SelectTrigger className="w-44" data-testid="select-filter-vehicle">
-                  <Truck className="h-4 w-4 mr-1" />
-                  <SelectValue placeholder="All Vehicles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Vehicles</SelectItem>
-                  {vehicles.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.number}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Customer</Label>
-              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                <SelectTrigger className="w-44" data-testid="select-filter-customer">
-                  <Users className="h-4 w-4 mr-1" />
-                  <SelectValue placeholder="All Customers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Customers</SelectItem>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {(selectedVehicleId !== "all" || selectedCustomerId !== "all") && (
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => {
-                  setSelectedVehicleId("all");
-                  setSelectedCustomerId("all");
-                }}
-                data-testid="button-clear-filters"
-              >
-                Clear Filters
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="border-primary/30 bg-primary/5">
@@ -445,6 +447,7 @@ export default function Reports() {
         </TabsList>
 
         <TabsContent value="sales" className="space-y-4">
+          <FilterSection />
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -537,6 +540,7 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="daily" className="space-y-4">
+          <FilterSection />
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -611,6 +615,7 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="charts" className="space-y-4">
+          <FilterSection />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-3">
