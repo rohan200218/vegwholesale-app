@@ -546,6 +546,7 @@ export default function Sell() {
         capacity: data.capacity || null,
         driverName: data.driverName || null,
         driverPhone: data.driverPhone || null,
+        entryDate: new Date().toISOString().split("T")[0],
       });
       
       const vehicle = await vehicleResponse.json();
@@ -1318,13 +1319,18 @@ export default function Sell() {
               data-testid={`card-vehicle-${vehicle.id}`}
             >
               <CardContent className="p-3 flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <Truck className="h-5 w-5 text-primary flex-shrink-0" />
-                  <span className="text-sm font-bold truncate" title={vehicle.number} data-testid={`text-vehicle-number-${vehicle.id}`}>
-                    {vehicle.number}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <Truck className="h-10 w-10 text-primary flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-bold truncate" title={vehicle.number} data-testid={`text-vehicle-number-${vehicle.id}`}>
+                      {vehicle.number}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{vehicle.type}</span>
+                    {vehicle.entryDate && (
+                      <span className="text-xs text-muted-foreground">{vehicle.entryDate}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-xs text-muted-foreground">{vehicle.type}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-muted-foreground">Total:</span>
                   <span className="text-sm font-bold text-primary" data-testid={`text-vehicle-total-${vehicle.id}`}>

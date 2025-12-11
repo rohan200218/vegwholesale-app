@@ -48,6 +48,7 @@ export const vehicles = pgTable("vehicles", {
   capacity: text("capacity"),
   driverName: text("driver_name"),
   driverPhone: text("driver_phone"),
+  entryDate: text("entry_date"),
 });
 
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true });
