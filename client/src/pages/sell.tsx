@@ -222,6 +222,7 @@ function VehicleSalePane({
         invoiceNumber,
         customerId,
         vehicleId: vehicle.id,
+        vendorId: vehicle.vendorId || null,
         date: today,
         subtotal,
         includeHamaliCharge: draft.hamaliCharge > 0,
@@ -529,7 +530,7 @@ export default function Sell() {
 
   const createVehicleMutation = useMutation({
     mutationFn: async (data: VehicleFormValues) => {
-      let vendorName = data.vendorId ? vendors.find(v => v.id === data.vendorId)?.name : null;
+      let actualVendorId = data.vendorId && data.vendorId !== "new" ? data.vendorId : null;
       
       if (data.vendorId === "new" && data.newVendorName?.trim()) {
         const vendorRes = await apiRequest("POST", "/api/vendors", {
@@ -539,7 +540,7 @@ export default function Sell() {
           email: "",
         });
         const newVendor = await vendorRes.json();
-        vendorName = newVendor.name;
+        actualVendorId = newVendor.id;
       }
 
       const createdProductIds: Record<string, string> = {};
@@ -566,6 +567,7 @@ export default function Sell() {
         driverName: data.driverName || null,
         driverPhone: data.driverPhone || null,
         entryDate: new Date().toISOString().split("T")[0],
+        vendorId: actualVendorId,
       });
       
       const vehicle = await vehicleResponse.json();

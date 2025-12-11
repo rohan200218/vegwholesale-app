@@ -49,6 +49,7 @@ export const vehicles = pgTable("vehicles", {
   driverName: text("driver_name"),
   driverPhone: text("driver_phone"),
   entryDate: text("entry_date"),
+  vendorId: varchar("vendor_id"),
 });
 
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({ id: true });
@@ -104,6 +105,7 @@ export const invoices = pgTable("invoices", {
   invoiceNumber: text("invoice_number").notNull(),
   customerId: varchar("customer_id").notNull(),
   vehicleId: varchar("vehicle_id"),
+  vendorId: varchar("vendor_id"),
   date: text("date").notNull(),
   subtotal: real("subtotal").notNull(),
   includeHamaliCharge: boolean("include_halal_charge").notNull().default(false),

@@ -121,9 +121,10 @@ export default function Reports() {
       if (endDate && inv.date > endDate) return false;
       if (selectedVehicleId !== "all" && inv.vehicleId !== selectedVehicleId) return false;
       if (selectedCustomerId !== "all" && inv.customerId !== selectedCustomerId) return false;
+      if (selectedVendorId !== "all" && inv.vendorId !== selectedVendorId) return false;
       return true;
     }).sort((a, b) => b.date.localeCompare(a.date) || b.invoiceNumber.localeCompare(a.invoiceNumber));
-  }, [invoices, startDate, endDate, selectedVehicleId, selectedCustomerId]);
+  }, [invoices, startDate, endDate, selectedVehicleId, selectedCustomerId, selectedVendorId]);
 
   const summary = useMemo(() => {
     const totalSales = filteredInvoices.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
@@ -194,7 +195,7 @@ export default function Reports() {
       inv.date || "",
       getVehicleNumber(inv.vehicleId),
       getCustomerName(inv.customerId),
-      "-",
+      getVendorName(inv.vendorId),
       (inv.totalKgWeight || 0).toFixed(2),
       (inv.subtotal || 0).toFixed(2),
       (inv.hamaliChargeAmount || 0).toFixed(2),
@@ -524,7 +525,7 @@ export default function Reports() {
                           <TableCell>
                             <div className="flex items-center gap-1">
                               <Package className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">-</span>
+                              <span className="text-sm">{getVendorName(inv.vendorId)}</span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm">
@@ -548,7 +549,7 @@ export default function Reports() {
                         </TableRow>
                       ))}
                       <TableRow className="bg-muted/50 font-semibold">
-                        <TableCell colSpan={4}>TOTAL</TableCell>
+                        <TableCell colSpan={5}>TOTAL</TableCell>
                         <TableCell className="text-right font-mono">
                           {summary.totalWeight.toFixed(2)} KG
                         </TableCell>
