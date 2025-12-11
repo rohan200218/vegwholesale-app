@@ -67,6 +67,8 @@ export default function Reports() {
   const [periodType, setPeriodType] = useState<PeriodType>("today");
   const [customStartDate, setCustomStartDate] = useState(monthAgo);
   const [customEndDate, setCustomEndDate] = useState(today);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>("all");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
 
   const { startDate, endDate } = useMemo(() => {
     switch (periodType) {
@@ -111,9 +113,11 @@ export default function Reports() {
     return invoices.filter((inv) => {
       if (startDate && inv.date < startDate) return false;
       if (endDate && inv.date > endDate) return false;
+      if (selectedVehicleId !== "all" && inv.vehicleId !== selectedVehicleId) return false;
+      if (selectedCustomerId !== "all" && inv.customerId !== selectedCustomerId) return false;
       return true;
     }).sort((a, b) => b.date.localeCompare(a.date) || b.invoiceNumber.localeCompare(a.invoiceNumber));
-  }, [invoices, startDate, endDate]);
+  }, [invoices, startDate, endDate, selectedVehicleId, selectedCustomerId]);
 
   const summary = useMemo(() => {
     const totalSales = filteredInvoices.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
@@ -259,7 +263,7 @@ export default function Reports() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <Filter className="h-4 w-4" />
-            Period Filter
+            Filters
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -299,6 +303,49 @@ export default function Reports() {
                   />
                 </div>
               </>
+            )}
+            <div className="space-y-2">
+              <Label>Vehicle</Label>
+              <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
+                <SelectTrigger className="w-44" data-testid="select-filter-vehicle">
+                  <Truck className="h-4 w-4 mr-1" />
+                  <SelectValue placeholder="All Vehicles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Vehicles</SelectItem>
+                  {vehicles.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.number}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Customer</Label>
+              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                <SelectTrigger className="w-44" data-testid="select-filter-customer">
+                  <Users className="h-4 w-4 mr-1" />
+                  <SelectValue placeholder="All Customers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Customers</SelectItem>
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {(selectedVehicleId !== "all" || selectedCustomerId !== "all") && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  setSelectedVehicleId("all");
+                  setSelectedCustomerId("all");
+                }}
+                data-testid="button-clear-filters"
+              >
+                Clear Filters
+              </Button>
             )}
           </div>
         </CardContent>
