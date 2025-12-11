@@ -1310,24 +1310,32 @@ export default function Sell() {
           }
 
           const totalQty = itemsWithStock.reduce((sum, inv) => sum + inv.quantity, 0);
+          
+          // Check if vehicle is new (today's date)
+          const today = new Date().toISOString().split("T")[0];
+          const isNewVehicle = vehicle.entryDate === today;
 
           return (
             <Card
               key={vehicle.id}
-              className="hover-elevate cursor-pointer w-40 flex-shrink-0"
+              className={`hover-elevate cursor-pointer w-48 flex-shrink-0 ${isNewVehicle ? 'ring-2 ring-primary' : ''}`}
               onClick={() => handleVehicleSelect(vehicle.id)}
               data-testid={`card-vehicle-${vehicle.id}`}
             >
               <CardContent className="p-3 flex flex-col gap-2">
                 <div className="flex items-center gap-3">
-                  <Truck className="h-10 w-10 text-primary flex-shrink-0" />
+                  <Truck className={`h-10 w-10 flex-shrink-0 ${isNewVehicle ? 'text-primary' : 'text-amber-600'}`} />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-bold truncate" title={vehicle.number} data-testid={`text-vehicle-number-${vehicle.id}`}>
+                    <span className="text-sm font-bold" data-testid={`text-vehicle-number-${vehicle.id}`}>
                       {vehicle.number}
                     </span>
                     <span className="text-xs text-muted-foreground">{vehicle.type}</span>
-                    {vehicle.entryDate && (
-                      <span className="text-xs text-muted-foreground">{vehicle.entryDate}</span>
+                    {vehicle.entryDate ? (
+                      <span className={`text-xs ${isNewVehicle ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                        {vehicle.entryDate} {isNewVehicle && '(New)'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-600">(Old Vehicle)</span>
                     )}
                   </div>
                 </div>
